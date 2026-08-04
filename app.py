@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v15 (Ultimate Fix & Stable Architecture)
+# AI English Conversation Partner — v16 (API Key Visibility Fix)
 # ==========================================
 
 import os
@@ -113,7 +113,6 @@ def cleanup_old_audio_files(days=7):
                 if f.endswith('.mp3'):
                     fpath = os.path.join(root, f)
                     if os.path.getmtime(fpath) < cutoff_time:
-                        # تم التعديل: حماية النظام من التوقف في حال كان الملف قيد الاستخدام
                         try:
                             os.remove(fpath)
                         except OSError:
@@ -277,15 +276,19 @@ st.sidebar.title("🎓 Elite English")
 st.sidebar.caption("بيئة تعليمية هادئة وذكية")
 
 st.sidebar.markdown('<div class="side-heading">🔑 مفتاح التفعيل (API Key)</div>', unsafe_allow_html=True)
-env_key = os.environ.get("GEMINI_API_KEY", "")
 
-if env_key:
-    st.sidebar.success("✅ مفتاح النظام مفعل تلقائياً.")
-    api_key = env_key
-else:
-    api_key = st.sidebar.text_input("أدخل مفتاح Gemini هنا:", type="password", key="api_key_input")
-    if not api_key:
-        st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
+# تم التعديل: إزالة شرط الإخفاء بالكامل وإجبار الحقل على الظهور دائماً
+env_key = os.environ.get("GEMINI_API_KEY", "")
+api_key = st.sidebar.text_input(
+    "أدخل مفتاح Gemini هنا:", 
+    value=env_key, 
+    type="password", 
+    key="api_key_input",
+    placeholder="AIzaSy..."
+)
+
+if not api_key:
+    st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
 
 with st.sidebar.expander("⚙️ إعدادات الموديل (اختياري)"):
     model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL, key="model_input")
@@ -334,13 +337,10 @@ if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True
 # 3. معالج الصوت (Text-to-Speech)
 # ==========================================
 def speak(text: str, voice: str) -> str:
-    # تم التعديل: تجنب استدعاء الخدمة إذا كان النص فارغاً تماماً
     if not text or not text.strip():
         return None
         
     out_path = os.path.join(AUDIO_DIR, f"tts_{uuid.uuid4().hex}.mp3")
-    
-    # تم التعديل: إزالة علامات Markdown لتجنب قراءتها حرفياً كرموز مزعجة
     clean_text = re.sub(r'[*_#`]', '', text)
     
     def run_async():
@@ -624,7 +624,6 @@ with tab_chat:
                 history_parts = []
                 last_role = None
                 
-                # تم التعديل: تجميع الرسائل المتتالية لنفس الدور للحماية من انهيار الجلسة عند الحذف
                 for m in messages:
                     role = "user" if m["role"] == "user" else "model"
                     if role == last_role and history_parts:
@@ -657,7 +656,7 @@ with tab_chat:
                 st.session_state.current_config = config_signature
                 st.session_state.test_question_count = 0
                 st.session_state.last_audio_id = None
-                st.session_state.last_played_audio = None # إعادة الضبط مع الجلسة الجديدة
+                st.session_state.last_played_audio = None
 
                 if scenario == "Speaking Placement Test (10+ Questions)":
                     welcome_msg = f"Welcome {mem_name}! Let's begin the placement test. Question 1: Please introduce yourself and tell me about your daily routine."
@@ -709,7 +708,6 @@ with tab_chat:
                     
                     audio_path = msg.get("audio")
                     if audio_path:
-                        # تم التعديل: التأكد من عدم تشغيل جميع الأصوات القديمة معاً عند إعادة تحميل الصفحة
                         is_fresh = (i == last_index) and (audio_path != st.session_state.get("last_played_audio"))
                         render_voice_player(audio_path, autoplay_audio and is_fresh)
                         if is_fresh:
@@ -724,7 +722,6 @@ with tab_chat:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # تم التعديل: إخراج st.chat_input من داخل الأعمدة لكونه يتسبب בـ Crash مباشر في Streamlit
         if voice_only_mode:
             audio_value = st.audio_input("🎤 سجل صوتياً:", key=f"audio_input_{st.session_state.audio_input_key}")
             typed = None
@@ -761,7 +758,6 @@ with tab_chat:
             user_input_text = typed
             input_source = "text"
 
-        # تم التعديل: التأكد من عدم إرسال نص فارغ نهائياً لحماية واجهة برمجة التطبيقات من الانهيار
         if user_input_text and user_input_text.strip():
             st.session_state.messages.append({"role": "user", "content": user_input_text})
             update_stat("total_messages", 1)
@@ -821,7 +817,6 @@ with tab_chat:
                 try:
                     audio_path = speak(display_reply, voice_id)
                     if audio_path:
-                        # تفعيل الصوت للرسالة الجديدة فقط
                         render_voice_player(audio_path, autoplay_audio)
                         st.session_state.last_played_audio = audio_path
                 except Exception as e:
@@ -836,7 +831,6 @@ with tab_chat:
                 update_stat("total_messages", 1)
                 update_stat("total_words", len(display_reply.split()))
 
-            # تم التعديل: تصفير وتحديث المايكرفون برمجياً فور إرسال رسالة صوتية لتجنب تكرار الإرسال
             if input_source == "audio":
                 st.session_state.audio_input_key += 1
                 st.rerun()
