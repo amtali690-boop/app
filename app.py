@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v13 FIXED
+# AI English Conversation Partner — v15 (Ultimate Fix & Stable Architecture)
 # ==========================================
 
 import os
@@ -13,9 +13,7 @@ import base64
 import random
 import sqlite3
 import threading
-import shutil
 from string import Template
-from datetime import datetime, timedelta
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -31,7 +29,6 @@ os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "elite_partner.db")
 
 def init_db():
-    """Initialize database with proper error handling"""
     try:
         with sqlite3.connect(DB_PATH, timeout=15) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
@@ -67,7 +64,6 @@ def init_db():
 init_db()
 
 def set_profile(key: str, val: str):
-    """Set profile value with error handling"""
     try:
         with sqlite3.connect(DB_PATH, timeout=15) as conn:
             c = conn.cursor()
@@ -78,7 +74,6 @@ def set_profile(key: str, val: str):
         print(f"⚠️ DB Error (set_profile): {e}")
 
 def get_profile(key: str, default: str = "") -> str:
-    """Get profile value with error handling"""
     try:
         with sqlite3.connect(DB_PATH, timeout=15) as conn:
             c = conn.cursor()
@@ -90,7 +85,6 @@ def get_profile(key: str, default: str = "") -> str:
         return default
 
 def update_stat(key: str, amount: int = 1):
-    """Update statistics"""
     try:
         with sqlite3.connect(DB_PATH, timeout=15) as conn:
             c = conn.cursor()
@@ -101,7 +95,6 @@ def update_stat(key: str, amount: int = 1):
         print(f"⚠️ DB Error (update_stat): {e}")
 
 def get_stat(key: str) -> int:
-    """Get statistics"""
     try:
         with sqlite3.connect(DB_PATH, timeout=15) as conn:
             c = conn.cursor()
@@ -112,9 +105,7 @@ def get_stat(key: str) -> int:
         print(f"⚠️ DB Error (get_stat): {e}")
         return 0
 
-# ✅ إصلاح 1: تنظيف الملفات الصوتية القديمة
 def cleanup_old_audio_files(days=7):
-    """حذف الملفات الصوتية الأقدم من عدد محدد من الأيام"""
     try:
         cutoff_time = time.time() - (days * 24 * 3600)
         for root, dirs, files in os.walk(DB_DIR):
@@ -122,7 +113,11 @@ def cleanup_old_audio_files(days=7):
                 if f.endswith('.mp3'):
                     fpath = os.path.join(root, f)
                     if os.path.getmtime(fpath) < cutoff_time:
-                        os.remove(fpath)
+                        # تم التعديل: حماية النظام من التوقف في حال كان الملف قيد الاستخدام
+                        try:
+                            os.remove(fpath)
+                        except OSError:
+                            pass
     except Exception as e:
         print(f"⚠️ Cleanup error: {e}")
 
@@ -132,6 +127,12 @@ cleanup_old_audio_files()
 if "session_audio_dir" not in st.session_state:
     st.session_state.session_audio_dir = os.path.join(DB_DIR, uuid.uuid4().hex)
     os.makedirs(st.session_state.session_audio_dir, exist_ok=True)
+
+if "audio_input_key" not in st.session_state:
+    st.session_state.audio_input_key = 0
+
+if "last_played_audio" not in st.session_state:
+    st.session_state.last_played_audio = None
 
 AUDIO_DIR = st.session_state.session_audio_dir
 
@@ -275,21 +276,18 @@ st.markdown(
 st.sidebar.title("🎓 Elite English")
 st.sidebar.caption("بيئة تعليمية هادئة وذكية")
 
-# ✅ إصلاح 2: التحقق من API Key بشكل صحيح
-with st.sidebar.expander("🔑 إعدادات API (اضغط للفتح)", expanded=not bool(os.environ.get("GEMINI_API_KEY"))):
-    env_key = os.environ.get("GEMINI_API_KEY", "")
-    use_different_key = False
-    if env_key:
-        st.success("✅ مفتاح النظام مفعل.")
-        use_different_key = st.checkbox("إدخال مفتاح مختلف")
+st.sidebar.markdown('<div class="side-heading">🔑 مفتاح التفعيل (API Key)</div>', unsafe_allow_html=True)
+env_key = os.environ.get("GEMINI_API_KEY", "")
 
-    if env_key and not use_different_key:
-        api_key = env_key
-    else:
-        api_key = st.text_input("Gemini API Key:", type="password", key="api_key_input")
-        if not api_key:
-            st.warning("⚠️ يرجى إدخال API Key لمتابعة")
-        
+if env_key:
+    st.sidebar.success("✅ مفتاح النظام مفعل تلقائياً.")
+    api_key = env_key
+else:
+    api_key = st.sidebar.text_input("أدخل مفتاح Gemini هنا:", type="password", key="api_key_input")
+    if not api_key:
+        st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
+
+with st.sidebar.expander("⚙️ إعدادات الموديل (اختياري)"):
     model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL, key="model_input")
 
 st.sidebar.markdown('<div class="side-heading">💬 بيئة المحادثة</div>', unsafe_allow_html=True)
@@ -328,23 +326,28 @@ voice_only_mode = st.sidebar.toggle("🎙️ وضع المكالمة الصوت�
 st.sidebar.markdown('<div class="side-heading">⚙️ خيارات الجلسة</div>', unsafe_allow_html=True)
 if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True):
     for k in list(st.session_state.keys()):
-        if k != "session_audio_dir":
+        if k not in ["session_audio_dir", "audio_input_key"]:
             del st.session_state[k]
     st.rerun()
 
 # ==========================================
 # 3. معالج الصوت (Text-to-Speech)
 # ==========================================
-# ✅ إصلاح 3: تحسين دالة speak() مع معالجة أفضل للأخطاء
 def speak(text: str, voice: str) -> str:
-    """Generate speech with proper async handling"""
+    # تم التعديل: تجنب استدعاء الخدمة إذا كان النص فارغاً تماماً
+    if not text or not text.strip():
+        return None
+        
     out_path = os.path.join(AUDIO_DIR, f"tts_{uuid.uuid4().hex}.mp3")
+    
+    # تم التعديل: إزالة علامات Markdown لتجنب قراءتها حرفياً كرموز مزعجة
+    clean_text = re.sub(r'[*_#`]', '', text)
     
     def run_async():
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            communicate = edge_tts.Communicate(text, voice)
+            communicate = edge_tts.Communicate(clean_text, voice)
             loop.run_until_complete(communicate.save(out_path))
             loop.close()
         except Exception as e:
@@ -354,7 +357,7 @@ def speak(text: str, voice: str) -> str:
     try:
         t = threading.Thread(target=run_async, daemon=True)
         t.start()
-        t.join(timeout=30)  # ✅ إصلاح: إضافة timeout
+        t.join(timeout=30)
         
         if not os.path.exists(out_path):
             raise Exception("Audio file was not created")
@@ -382,8 +385,8 @@ _VOICE_PLAYER_TEMPLATE = Template("""
     transition: all 0.2s;
   }
   .vp-btn:hover { background-color: #0284c7; transform: scale(1.05); }
-  .vp-wave { position: relative; width: $${wave_width}px; height: 26px; cursor: pointer; }
-  .vp-bars-bg, .vp-bars-fixed { position: absolute; top: 0; left: 0; width: $${wave_width}px; height: 100%; display: flex; align-items: center; gap: 3px; }
+  .vp-wave { position: relative; width: ${wave_width}px; height: 26px; cursor: pointer; }
+  .vp-bars-bg, .vp-bars-fixed { position: absolute; top: 0; left: 0; width: ${wave_width}px; height: 100%; display: flex; align-items: center; gap: 3px; }
   .vp-bars-bg span { display: block; width: 3px; border-radius: 2px; background: rgba(128, 128, 128, 0.3); }
   .vp-bars-fixed span { display: block; width: 3px; border-radius: 2px; background-color: #0ea5e9; }
   .vp-clip { position: absolute; top: 0; left: 0; height: 100%; width: 0px; overflow: hidden; }
@@ -441,7 +444,6 @@ def _wave_bar_heights(seed_key: str, bars: int = 40):
     return [rng.randint(6, 22) for _ in range(bars)]
 
 def render_voice_player(audio_path: str, autoplay: bool):
-    """Render voice player with proper error handling"""
     try:
         if not os.path.exists(audio_path):
             st.warning("⚠️ الملف الصوتي غير متوفر")
@@ -595,231 +597,246 @@ with tab_vocab:
 # التبويب 1: المحادثة (Main Chat)
 # ------------------------------------------
 with tab_chat:
-    # ✅ إصلاح 4: التحقق من API Key قبل بدء المحادثة
     if not api_key or not api_key.strip():
-        st.warning("👈 يرجى إدخال Gemini API Key في الشريط الجانبي")
-        st.stop()
+        st.error("⚠️ يرجى إدخال Gemini API Key في الشريط الجانبي لبدء المحادثة. باقي ميزات التطبيق (الدفتر والملف) تعمل بشكل طبيعي.")
+    else:
+        mem_name = get_profile("name", "الطالب")
+        mem_level = get_profile("level", "B1")
+        mem_goals = get_profile("goals", "محادثة عامة")
+        mem_notes = get_profile("notes", "")
 
-    mem_name = get_profile("name", "الطالب")
-    mem_level = get_profile("level", "B1")
-    mem_goals = get_profile("goals", "محادثة عامة")
-    mem_notes = get_profile("notes", "")
+        SYSTEM_PROMPT = f"""
+    You are an elite English conversation partner.
+    User: {mem_name} | Level: {mem_level} | Goals: {mem_goals}
+    Special Notes: {mem_notes}
+    Correction Mode: {strictness}
 
-    SYSTEM_PROMPT = f"""
-You are an elite English conversation partner.
-User: {mem_name} | Level: {mem_level} | Goals: {mem_goals}
-Special Notes: {mem_notes}
-Correction Mode: {strictness}
+    Scenario: {PROMPTS.get(scenario, PROMPTS['Casual Friend (Everyday Chat)'])}
 
-Scenario: {PROMPTS.get(scenario, PROMPTS['Casual Friend (Everyday Chat)'])}
+    IMPORTANT:
+    1. Tailor language to {mem_level}
+    2. Follow strictness: {strictness}
+    3. End with: [EVAL|Grammar:X/10|Vocab:X/10|Natural:X/10|Fluency:X/10|Correction: brief tip]
+    """
 
-IMPORTANT:
-1. Tailor language to {mem_level}
-2. Follow strictness: {strictness}
-3. End with: [EVAL|Grammar:X/10|Vocab:X/10|Natural:X/10|Fluency:X/10|Correction: brief tip]
-"""
-
-    def sync_gemini_history(client_instance, messages):
-        """Sync messages with Gemini"""
-        try:
-            history_parts = []
-            for m in messages:
-                role = "user" if m["role"] == "user" else "model"
-                history_parts.append(
-                    types.Content(role=role, parts=[types.Part.from_text(text=m["content"])])
+        def sync_gemini_history(client_instance, messages):
+            try:
+                history_parts = []
+                last_role = None
+                
+                # تم التعديل: تجميع الرسائل المتتالية لنفس الدور للحماية من انهيار الجلسة عند الحذف
+                for m in messages:
+                    role = "user" if m["role"] == "user" else "model"
+                    if role == last_role and history_parts:
+                        history_parts[-1].parts[0].text += f"\n\n{m['content']}"
+                    else:
+                        history_parts.append(
+                            types.Content(role=role, parts=[types.Part.from_text(text=m["content"])])
+                        )
+                    last_role = role
+                    
+                st.session_state.chat_session = client_instance.chats.create(
+                    model=model_name,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=0.7
+                    ),
+                    history=history_parts
                 )
-            st.session_state.chat_session = client_instance.chats.create(
-                model=model_name,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=0.7
-                ),
-                history=history_parts
-            )
+            except Exception as e:
+                st.error(f"❌ خطأ في مزامنة المحادثة: {e}")
+                raise
+
+        try:
+            client = genai.Client(api_key=api_key)
+            config_signature = (scenario, model_name, strictness, mem_name, mem_level)
+            
+            if "chat_session" not in st.session_state or st.session_state.get("current_config") != config_signature:
+                st.session_state.messages = []
+                sync_gemini_history(client, [])
+                st.session_state.current_config = config_signature
+                st.session_state.test_question_count = 0
+                st.session_state.last_audio_id = None
+                st.session_state.last_played_audio = None # إعادة الضبط مع الجلسة الجديدة
+
+                if scenario == "Speaking Placement Test (10+ Questions)":
+                    welcome_msg = f"Welcome {mem_name}! Let's begin the placement test. Question 1: Please introduce yourself and tell me about your daily routine."
+                    audio_path = speak(welcome_msg, voice_id)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": welcome_msg,
+                        "audio": audio_path
+                    })
+                    sync_gemini_history(client, st.session_state.messages)
+                    update_stat("total_messages", 1)
         except Exception as e:
-            st.error(f"❌ خطأ في مزامنة المحادثة: {e}")
-            raise
+            st.error(f"❌ خطأ في الاتصال، يرجى التأكد من صلاحية المفتاح: {e}")
 
-    try:
-        client = genai.Client(api_key=api_key)
-        config_signature = (scenario, model_name, strictness, mem_name, mem_level)
-        
-        if "chat_session" not in st.session_state or st.session_state.get("current_config") != config_signature:
-            st.session_state.messages = []
-            sync_gemini_history(client, [])
-            st.session_state.current_config = config_signature
-            st.session_state.test_question_count = 0
-            st.session_state.last_audio_id = None
-
-            # Welcome message for placement test
-            if scenario == "Speaking Placement Test (10+ Questions)":
-                welcome_msg = f"Welcome {mem_name}! Let's begin the placement test. Question 1: Please introduce yourself and tell me about your daily routine."
-                audio_path = speak(welcome_msg, voice_id)
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": welcome_msg,
-                    "audio": audio_path
-                })
-                sync_gemini_history(client, st.session_state.messages)
-                update_stat("total_messages", 1)
-    except Exception as e:
-        st.error(f"❌ خطأ في الاتصال: {e}")
-        st.stop()
-
-    st.markdown(f"""
-        <div class="hero-card">
-            <div class="hero-title">مرحباً {mem_name or 'بك'}! 👋</div>
-            <div class="hero-sub">{mem_level} • {mem_goals}</div>
-            <div>
-                <span class="badge">{SCENARIO_ICONS.get(scenario)} {scenario.split('(')[0]}</span>
-                <span class="badge" style="background-color:rgba(139, 92, 246, 0.1); color:#8b5cf6; border-color:rgba(139, 92, 246, 0.2);">🔊 {voice_label.split('—')[0]}</span>
+        st.markdown(f"""
+            <div class="hero-card">
+                <div class="hero-title">مرحباً {mem_name or 'بك'}! 👋</div>
+                <div class="hero-sub">{mem_level} • {mem_goals}</div>
+                <div>
+                    <span class="badge">{SCENARIO_ICONS.get(scenario)} {scenario.split('(')[0]}</span>
+                    <span class="badge" style="background-color:rgba(139, 92, 246, 0.1); color:#8b5cf6; border-color:rgba(139, 92, 246, 0.2);">🔊 {voice_label.split('—')[0]}</span>
+                </div>
             </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    if scenario == "Speaking Placement Test (10+ Questions)":
-        answered = st.session_state.get("test_question_count", 0)
-        st.progress(min(answered / 10, 1.0), text=f"السؤال {answered} من 10+")
+        if scenario == "Speaking Placement Test (10+ Questions)":
+            answered = st.session_state.get("test_question_count", 0)
+            st.progress(min(answered / 10, 1.0), text=f"السؤال {answered} من 10+")
 
-    # Display messages
-    if st.session_state.messages:
-        for i, msg in enumerate(st.session_state.messages):
-            with st.chat_message(msg["role"], avatar="🤖" if msg["role"] == "assistant" else "🧑"):
-                if msg.get("eval"):
-                    ev = msg["eval"]
+        if st.session_state.get("messages"):
+            last_index = len(st.session_state.messages) - 1
+            for i, msg in enumerate(st.session_state.messages):
+                with st.chat_message(msg["role"], avatar="🤖" if msg["role"] == "assistant" else "🧑"):
+                    if msg.get("eval"):
+                        ev = msg["eval"]
+                        st.markdown(f"""
+                        <div class="eval-card">
+                            <div class="eval-scores">
+                                <span class="eval-score-item">Grammar: {ev.get('Grammar','-')}</span>
+                                <span class="eval-score-item">Vocab: {ev.get('Vocab','-')}</span>
+                                <span class="eval-score-item">Natural: {ev.get('Natural','-')}</span>
+                                <span class="eval-score-item">Fluency: {ev.get('Fluency','-')}</span>
+                            </div>
+                            <div style="margin-top:8px;"><b>التصحيح:</b> {ev.get('Correction','')}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    st.write(msg["content"])
+                    
+                    audio_path = msg.get("audio")
+                    if audio_path:
+                        # تم التعديل: التأكد من عدم تشغيل جميع الأصوات القديمة معاً عند إعادة تحميل الصفحة
+                        is_fresh = (i == last_index) and (audio_path != st.session_state.get("last_played_audio"))
+                        render_voice_player(audio_path, autoplay_audio and is_fresh)
+                        if is_fresh:
+                            st.session_state.last_played_audio = audio_path
+
+                    if st.button("🗑️", key=f"del_{i}", help="حذف"):
+                        st.session_state.messages.pop(i)
+                        sync_gemini_history(client, st.session_state.messages)
+                        st.rerun()
+        else:
+            st.info("💬 ابدأ المحادثة أدناه!")
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # تم التعديل: إخراج st.chat_input من داخل الأعمدة لكونه يتسبب בـ Crash مباشر في Streamlit
+        if voice_only_mode:
+            audio_value = st.audio_input("🎤 سجل صوتياً:", key=f"audio_input_{st.session_state.audio_input_key}")
+            typed = None
+        else:
+            audio_value = st.audio_input("🎤 سجل صوتياً (اختياري):", key=f"audio_input_{st.session_state.audio_input_key}")
+            typed = st.chat_input("📝 أو اكتب رسالتك...")
+
+        user_input_text = None
+        input_source = None
+
+        if audio_value is not None and len(audio_value.getvalue()) > 0:
+            audio_bytes = audio_value.getvalue()
+            audio_id = hashlib.sha256(audio_bytes).hexdigest()
+            
+            if st.session_state.get("last_audio_id") != audio_id:
+                st.session_state.last_audio_id = audio_id
+                
+                with st.spinner("🎧 جاري التعرف على الصوت..."):
+                    try:
+                        transcript = client.models.generate_content(
+                            model=model_name,
+                            contents=[
+                                types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                                "Transcribe exactly what is said. Output ONLY the transcription."
+                            ],
+                        )
+                        if transcript.text:
+                            user_input_text = transcript.text.strip()
+                            input_source = "audio"
+                    except Exception as e:
+                        st.error(f"❌ خطأ في التعرف: {e}")
+        
+        elif typed:
+            user_input_text = typed
+            input_source = "text"
+
+        # تم التعديل: التأكد من عدم إرسال نص فارغ نهائياً لحماية واجهة برمجة التطبيقات من الانهيار
+        if user_input_text and user_input_text.strip():
+            st.session_state.messages.append({"role": "user", "content": user_input_text})
+            update_stat("total_messages", 1)
+            update_stat("total_words", len(user_input_text.split()))
+
+            if scenario == "Speaking Placement Test (10+ Questions)":
+                st.session_state.test_question_count += 1
+
+            with st.chat_message("user", avatar="🧑"):
+                st.write(user_input_text)
+
+            with st.chat_message("assistant", avatar="🤖"):
+                with st.spinner("المعلم يرد..."):
+                    try:
+                        if hasattr(st.session_state, 'chat_session'):
+                            response = st.session_state.chat_session.send_message(user_input_text)
+                            full_reply = response.text
+                        else:
+                            st.error("⚠️ الجلسة غير متصلة.")
+                            st.stop()
+                    except Exception as e:
+                        st.error(f"❌ خطأ: {e}")
+                        st.session_state.messages.pop()
+                        st.stop()
+
+                eval_data = None
+                display_reply = full_reply
+                eval_match = re.search(r"\[EVAL\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
+                
+                if eval_match:
+                    eval_str = eval_match.group(1).replace('\n', '')
+                    display_reply = full_reply.replace(eval_match.group(0), "").strip()
+                    
+                    for item in eval_str.split("|"):
+                        if ":" in item:
+                            if eval_data is None:
+                                eval_data = {}
+                            k, v = item.split(":", 1)
+                            eval_data[k.strip()] = v.strip()
+
+                if eval_data:
                     st.markdown(f"""
                     <div class="eval-card">
                         <div class="eval-scores">
-                            <span class="eval-score-item">Grammar: {ev.get('Grammar','-')}</span>
-                            <span class="eval-score-item">Vocab: {ev.get('Vocab','-')}</span>
-                            <span class="eval-score-item">Natural: {ev.get('Natural','-')}</span>
-                            <span class="eval-score-item">Fluency: {ev.get('Fluency','-')}</span>
+                            <span class="eval-score-item">Grammar: {eval_data.get('Grammar','-')}</span>
+                            <span class="eval-score-item">Vocab: {eval_data.get('Vocab','-')}</span>
+                            <span class="eval-score-item">Natural: {eval_data.get('Natural','-')}</span>
+                            <span class="eval-score-item">Fluency: {eval_data.get('Fluency','-')}</span>
                         </div>
-                        <div style="margin-top:8px;"><b>التصحيح:</b> {ev.get('Correction','')}</div>
+                        <div style="margin-top:8px;"><b>التصحيح:</b> {eval_data.get('Correction','')}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                st.write(msg["content"])
-                
-                audio_path = msg.get("audio")
-                if audio_path:
-                    render_voice_player(audio_path, autoplay_audio)
+                st.write(display_reply)
 
-                if st.button("🗑️", key=f"del_{i}", help="حذف"):
-                    st.session_state.messages.pop(i)
-                    sync_gemini_history(client, st.session_state.messages)
-                    st.rerun()
-    else:
-        st.info("💬 ابدأ المحادثة أدناه!")
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # ✅ إصلاح 5: معالجة الإدخال الصوتي والنصي بشكل أفضل
-    col_audio, col_text = st.columns([1, 2]) if not voice_only_mode else (st.columns([1, 0])[0], None)
-    
-    with col_audio:
-        audio_value = st.audio_input("🎤 سجل صوتياً:")
-    
-    typed = None
-    if col_text and not voice_only_mode:
-        with col_text:
-            typed = st.chat_input("📝 أو اكتب رسالتك...")
-
-    user_input_text = None
-
-    # ✅ إصلاح 6: معالجة الصوت مع تجنب المشاكل
-    if audio_value is not None and len(audio_value.getvalue()) > 0:
-        audio_bytes = audio_value.getvalue()
-        audio_id = hashlib.sha256(audio_bytes).hexdigest()
-        
-        if st.session_state.get("last_audio_id") != audio_id:
-            st.session_state.last_audio_id = audio_id
-            
-            with st.spinner("🎧 جاري التعرف على الصوت..."):
+                audio_path = None
                 try:
-                    transcript = client.models.generate_content(
-                        model=model_name,
-                        contents=[
-                            types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
-                            "Transcribe exactly what is said. Output ONLY the transcription."
-                        ],
-                    )
-                    user_input_text = transcript.text.strip() if transcript.text else None
+                    audio_path = speak(display_reply, voice_id)
+                    if audio_path:
+                        # تفعيل الصوت للرسالة الجديدة فقط
+                        render_voice_player(audio_path, autoplay_audio)
+                        st.session_state.last_played_audio = audio_path
                 except Exception as e:
-                    st.error(f"❌ خطأ في التعرف: {e}")
-    
-    elif typed:
-        user_input_text = typed
+                    st.warning(f"⚠️ خطأ في توليد الصوت: {e}")
 
-    # Send message
-    if user_input_text:
-        st.session_state.messages.append({"role": "user", "content": user_input_text})
-        update_stat("total_messages", 1)
-        update_stat("total_words", len(user_input_text.split()))
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": display_reply,
+                    "audio": audio_path,
+                    "eval": eval_data
+                })
+                update_stat("total_messages", 1)
+                update_stat("total_words", len(display_reply.split()))
 
-        if scenario == "Speaking Placement Test (10+ Questions)":
-            st.session_state.test_question_count += 1
-
-        with st.chat_message("user", avatar="🧑"):
-            st.write(user_input_text)
-
-        with st.chat_message("assistant", avatar="🤖"):
-            with st.spinner("المعلم يرد..."):
-                try:
-                    response = st.session_state.chat_session.send_message(user_input_text)
-                    full_reply = response.text
-                except Exception as e:
-                    st.error(f"❌ خطأ: {e}")
-                    st.session_state.messages.pop()
-                    st.stop()
-
-            # Parse evaluation
-            eval_data = None
-            display_reply = full_reply
-            eval_match = re.search(r"\[EVAL\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
-            
-            if eval_match:
-                eval_str = eval_match.group(1).replace('\n', '')
-                display_reply = full_reply.replace(eval_match.group(0), "").strip()
-                
-                for item in eval_str.split("|"):
-                    if ":" in item:
-                        if eval_data is None:
-                            eval_data = {}
-                        k, v = item.split(":", 1)
-                        eval_data[k.strip()] = v.strip()
-
-            # Display evaluation
-            if eval_data:
-                st.markdown(f"""
-                <div class="eval-card">
-                    <div class="eval-scores">
-                        <span class="eval-score-item">Grammar: {eval_data.get('Grammar','-')}</span>
-                        <span class="eval-score-item">Vocab: {eval_data.get('Vocab','-')}</span>
-                        <span class="eval-score-item">Natural: {eval_data.get('Natural','-')}</span>
-                        <span class="eval-score-item">Fluency: {eval_data.get('Fluency','-')}</span>
-                    </div>
-                    <div style="margin-top:8px;"><b>التصحيح:</b> {eval_data.get('Correction','')}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.write(display_reply)
-
-            # Generate speech
-            audio_path = None
-            try:
-                audio_path = speak(display_reply, voice_id)
-                if audio_path:
-                    render_voice_player(audio_path, autoplay_audio)
-            except Exception as e:
-                st.warning(f"⚠️ خطأ في توليد الصوت: {e}")
-
-            # Save assistant message
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": display_reply,
-                "audio": audio_path,
-                "eval": eval_data
-            })
-            update_stat("total_messages", 1)
-            update_stat("total_words", len(display_reply.split()))
+            # تم التعديل: تصفير وتحديث المايكرفون برمجياً فور إرسال رسالة صوتية لتجنب تكرار الإرسال
+            if input_source == "audio":
+                st.session_state.audio_input_key += 1
+                st.rerun()
