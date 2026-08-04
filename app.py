@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v16 (API Key Visibility Fix)
+# AI English Conversation Partner — v17 (API Key State Fixed)
 # ==========================================
 
 import os
@@ -277,11 +277,15 @@ st.sidebar.caption("بيئة تعليمية هادئة وذكية")
 
 st.sidebar.markdown('<div class="side-heading">🔑 مفتاح التفعيل (API Key)</div>', unsafe_allow_html=True)
 
-# تم التعديل: إزالة شرط الإخفاء بالكامل وإجبار الحقل على الظهور دائماً
-env_key = os.environ.get("GEMINI_API_KEY", "")
+# // تم التعديل: تخزين قيمة المفتاح والموديل في session_state لحمايتها من المسح عند تحديث الواجهة.
+if "api_key_input" not in st.session_state:
+    st.session_state.api_key_input = os.environ.get("GEMINI_API_KEY", "")
+if "model_input" not in st.session_state:
+    st.session_state.model_input = DEFAULT_MODEL
+
+# // تم التعديل: إزالة 'value=' والاعتماد على 'key' فقط للحفاظ على ما يكتبه المستخدم.
 api_key = st.sidebar.text_input(
     "أدخل مفتاح Gemini هنا:", 
-    value=env_key, 
     type="password", 
     key="api_key_input",
     placeholder="AIzaSy..."
@@ -291,7 +295,7 @@ if not api_key:
     st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
 
 with st.sidebar.expander("⚙️ إعدادات الموديل (اختياري)"):
-    model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL, key="model_input")
+    model_name = st.text_input("Gemini Model:", key="model_input")
 
 st.sidebar.markdown('<div class="side-heading">💬 بيئة المحادثة</div>', unsafe_allow_html=True)
 scenario = st.sidebar.selectbox(
@@ -329,7 +333,8 @@ voice_only_mode = st.sidebar.toggle("🎙️ وضع المكالمة الصوت�
 st.sidebar.markdown('<div class="side-heading">⚙️ خيارات الجلسة</div>', unsafe_allow_html=True)
 if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True):
     for k in list(st.session_state.keys()):
-        if k not in ["session_audio_dir", "audio_input_key"]:
+        # استثناء المتغيرات اللي بتلزمنا حتى ما ينهار التطبيق
+        if k not in ["session_audio_dir", "audio_input_key", "api_key_input", "model_input"]:
             del st.session_state[k]
     st.rerun()
 
@@ -624,10 +629,12 @@ with tab_chat:
                 history_parts = []
                 last_role = None
                 
+                # // تم التعديل: تجميع الرسائل بشكل آمن بدون التعديل المباشر على Object قد يكون محمي
                 for m in messages:
                     role = "user" if m["role"] == "user" else "model"
                     if role == last_role and history_parts:
-                        history_parts[-1].parts[0].text += f"\n\n{m['content']}"
+                        old_text = history_parts[-1].parts[0].text
+                        history_parts[-1] = types.Content(role=role, parts=[types.Part.from_text(text=f"{old_text}\n\n{m['content']}")])
                     else:
                         history_parts.append(
                             types.Content(role=role, parts=[types.Part.from_text(text=m["content"])])
