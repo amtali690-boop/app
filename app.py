@@ -1,5 +1,16 @@
 # ==========================================
-# AI English Conversation Partner — v6 (Ultra Pro+) — UI Refresh 2 (Voice Player)
+# AI English Conversation Partner — v7 (Ultra Pro+) — Reply Fix + Export + Typing + CEFR Badge
+# تحديثات v7:
+# 1) إصلاح جذر مشكلة "ما بقدر أرد بعد ما يجاوب الـ AI": خانة تسجيل الصوت (audio_input)
+#    كانت تحتفظ بالتسجيل القديم بعد إرساله، فتظهر وكأنها "عالقة" ولا تسمح بتسجيل رسالة
+#    جديدة بسهولة. الآن تتصفّر تلقائياً بمفتاح جديد بعد كل رسالة صوتية (نجحت أو فشلت)،
+#    فتقدر تسجّل فوراً من جديد. صندوق الكتابة النصي أُضيف له إعادة تحميل فورية بعد كل
+#    رسالة أيضاً، عشان رد الـ AI يطلع دايماً بمكانه الصحيح فوق المحادثة مباشرة.
+# 2) زر جديد بالشريط الجانبي لتصدير/حفظ المحادثة كاملة كملف .txt.
+# 3) مؤشر "🤖 AI يكتب..." متحرك (نقاط متحركة) بدل السبينر الافتراضي أثناء انتظار الرد.
+# 4) شارة واضحة (Badge) تظهر تلقائياً فوق التقرير النهائي لاختبار تحديد المستوى، توضح
+#    مستوى CEFR (A1-C2) بصرياً بدل ما يضيع وسط النص.
+#
 # إصلاحات وتحسينات v5:
 # 1) استبدال موديل Gemini المتوقف (gemini-2.0-flash) بموديل قابل للتعديل من الشريط الجانبي
 #    (Google أوقفت دعم gemini-2.0-flash فعلياً في 1 يونيو 2026).
@@ -36,6 +47,7 @@
 # ==========================================
 
 import os
+import re
 import time
 import uuid
 import shutil
@@ -193,10 +205,68 @@ st.markdown(
             border-radius: 10px;
             font-weight: 700;
         }
+        .cefr-badge {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(135deg, rgba(56,189,248,0.10), rgba(167,139,250,0.08));
+            border: 1px solid rgba(148,163,184,0.25);
+            border-radius: 14px;
+            padding: 12px 18px;
+            margin-bottom: 10px;
+        }
+        .cefr-badge-level {
+            font-size: 1.6rem;
+            font-weight: 900;
+            line-height: 1;
+            min-width: 46px;
+            text-align: center;
+        }
+        .cefr-badge-text { color: #e2e8f0; font-size: 0.85rem; line-height: 1.4; }
+        .typing-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(148,163,184,0.12);
+            border-radius: 14px;
+            padding: 10px 16px;
+            color: #94a3b8;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+        .typing-dots { display: inline-flex; gap: 4px; }
+        .typing-dots span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: linear-gradient(135deg, #38bdf8, #a78bfa);
+            animation: typing-bounce 1.2s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes typing-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+            30% { transform: translateY(-5px); opacity: 1; }
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def build_transcript(messages: list, scenario_name: str) -> str:
+    """يحوّل قائمة الرسائل لنص عادي جاهز للتحميل كملف .txt."""
+    lines = [
+        "AI English Conversation Partner — نسخة المحادثة",
+        f"السيناريو: {scenario_name}",
+        f"التاريخ: {time.strftime('%Y-%m-%d %H:%M')}",
+        "-" * 40,
+        "",
+    ]
+    for m in messages:
+        speaker = "أنت" if m["role"] == "user" else "AI"
+        lines.append(f"{speaker}: {m['content']}")
+        lines.append("")
+    return "\n".join(lines)
 
 # ==========================================
 # 2. الشريط الجانبي: الإعدادات والتحكم
@@ -295,10 +365,22 @@ if st.sidebar.button("🔄 Restart Session", width="stretch"):
     for k in [
         "messages", "chat_session", "current_scenario", "current_model",
         "last_audio_id", "last_played_audio", "test_question_count",
-        "anki_cards", "session_audio_dir",
+        "anki_cards", "session_audio_dir", "audio_input_key",
     ]:
         st.session_state.pop(k, None)
     st.rerun()
+
+st.sidebar.markdown('<div class="side-heading">📄 تصدير المحادثة</div>', unsafe_allow_html=True)
+if st.session_state.get("messages"):
+    st.sidebar.download_button(
+        label="⬇️ حفظ المحادثة كملف نصي",
+        data=build_transcript(st.session_state.messages, scenario),
+        file_name=f"conversation_{int(time.time())}.txt",
+        mime="text/plain",
+        width="stretch",
+    )
+else:
+    st.sidebar.caption("ابدأ المحادثة الأول عشان تقدر تصدّرها.")
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"🧠 Model: {model_name}")
@@ -483,11 +565,65 @@ def render_voice_player(audio_path: str, autoplay: bool):
     )
     components.html(html, height=60, scrolling=False)
 
+
+# ------------------------------------------
+# 3.c أدوات مساعدة: مؤشر الكتابة + شارة نتيجة CEFR
+# ------------------------------------------
+CEFR_INFO = {
+    "A1": ("#38bdf8", "مبتدئ"),
+    "A2": ("#38bdf8", "مبتدئ متقدم"),
+    "B1": ("#a78bfa", "متوسط"),
+    "B2": ("#a78bfa", "متوسط متقدم"),
+    "C1": ("#34d399", "متقدم"),
+    "C2": ("#34d399", "إتقان تام"),
+}
+CEFR_PATTERN = re.compile(r"\b(A1|A2|B1|B2|C1|C2)\b")
+
+
+def extract_cefr_level(text: str, questions_asked: int = 0):
+    """يحاول يلقط مستوى CEFR من التقرير النهائي فقط (بعد 10 أسئلة على الأقل، ولو
+    الرسالة فعلاً بتذكر CEFR أو Level) — عشان ما تطلع الشارة غلط أثناء الأسئلة العادية."""
+    if questions_asked < 10:
+        return None
+    lowered = text.lower()
+    if "cefr" not in lowered and "level" not in lowered:
+        return None
+    match = CEFR_PATTERN.search(text)
+    return match.group(1) if match else None
+
+
+def render_cefr_badge(level: str):
+    color, label_ar = CEFR_INFO.get(level, ("#38bdf8", ""))
+    st.markdown(
+        f"""
+        <div class="cefr-badge" style="border-color:{color}66;">
+            <div class="cefr-badge-level" style="color:{color};">{level}</div>
+            <div class="cefr-badge-text"><b>🎓 نتيجة اختبار تحديد المستوى</b><br/>
+            <span style="color:#94a3b8;">{label_ar}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_typing_indicator(slot):
+    slot.markdown(
+        """
+        <div class="typing-card">
+            <span>🤖 AI يكتب</span>
+            <span class="typing-dots"><span></span><span></span><span></span></span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # ==========================================
 # 4. رأس الصفحة (Hero) + الاتصال بـ Gemini وإدارة الجلسة
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "audio_input_key" not in st.session_state:
+    st.session_state.audio_input_key = 0
 
 st.markdown(
     f"""
@@ -566,6 +702,8 @@ last_index = len(messages) - 1
 for i, msg in enumerate(messages):
     avatar = "🤖" if msg["role"] == "assistant" else "🧑"
     with st.chat_message(msg["role"], avatar=avatar):
+        if msg.get("cefr_level"):
+            render_cefr_badge(msg["cefr_level"])
         st.write(msg["content"])
         audio_path = msg.get("audio")
         if audio_path and os.path.exists(audio_path):
@@ -586,13 +724,22 @@ def handle_user_message(text: str):
         st.session_state.test_question_count = st.session_state.get("test_question_count", 0) + 1
 
     with st.chat_message("assistant", avatar="🤖"):
-        with st.spinner("🤖 AI يفكّر بالرد..."):
-            try:
-                response = st.session_state.chat_session.send_message(text)
-                reply = response.text
-            except Exception as e:
-                st.error(f"⚠️ تعذر الحصول على رد. حاول إرسال رسالتك مرة أخرى.\n\n`{e}`")
-                return  # لا نسجّل رداً فاشلاً كأنه رد حقيقي؛ رسالتك تبقى فوق لإعادة المحاولة
+        typing_slot = st.empty()
+        render_typing_indicator(typing_slot)
+        try:
+            response = st.session_state.chat_session.send_message(text)
+            reply = response.text
+        except Exception as e:
+            typing_slot.empty()
+            st.error(f"⚠️ تعذر الحصول على رد. حاول إرسال رسالتك مرة أخرى.\n\n`{e}`")
+            return  # لا نسجّل رداً فاشلاً كأنه رد حقيقي؛ رسالتك تبقى فوق لإعادة المحاولة
+        typing_slot.empty()
+
+        cefr_level = None
+        if scenario == "Speaking Placement Test (10+ Questions)":
+            cefr_level = extract_cefr_level(reply, st.session_state.get("test_question_count", 0))
+            if cefr_level:
+                render_cefr_badge(cefr_level)
 
         st.write(reply)
 
@@ -605,14 +752,18 @@ def handle_user_message(text: str):
             st.caption("🔇 تعذر توليد الصوت هالمرة، لكن يمكنك متابعة المحادثة نصياً.")
 
     st.session_state.messages.append(
-        {"role": "assistant", "content": reply, "audio": audio_path}
+        {"role": "assistant", "content": reply, "audio": audio_path, "cefr_level": cefr_level}
     )
 
 # ==========================================
 # 7. إدخال صوتي (مايك)
 # ==========================================
 st.markdown('<div class="side-heading">🎤 سجّل رسالتك</div>', unsafe_allow_html=True)
-audio_value = st.audio_input("🎤 Record your message (Speak clearly in English)")
+st.caption("💡 تقدر ترد بصوتك هنا أو بالكتابة بالأسفل — الاثنين متاحين طول الوقت بعد كل رد من الـ AI.")
+audio_value = st.audio_input(
+    "🎤 Record your message (Speak clearly in English)",
+    key=f"audio_recorder_{st.session_state.audio_input_key}",
+)
 
 if audio_value is not None:
     audio_bytes = audio_value.getvalue()
@@ -634,6 +785,10 @@ if audio_value is not None:
                 st.error(f"⚠️ لم نتمكن من فهم الصوت: {e}")
         if spoken_text:
             handle_user_message(spoken_text)
+        # نبدّل مفتاح خانة التسجيل بعد كل محاولة (نجحت أو فشلت) عشان تظهر فاضية فوراً،
+        # وما "تعلق" على نفس التسجيل القديم وتمنعك من الرد مرة ثانية.
+        st.session_state.audio_input_key += 1
+        st.rerun()
 
 # ==========================================
 # 8. إدخال نصي
@@ -641,6 +796,7 @@ if audio_value is not None:
 typed = st.chat_input("...or type your message here")
 if typed:
     handle_user_message(typed)
+    st.rerun()
 
 # ==========================================
 # 9. مستخرج Anki المُحسَّن
