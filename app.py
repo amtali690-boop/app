@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v18 (Bulletproof API Key & UI)
+# AI English Conversation Partner — v19 (Final Stable Release)
 # ==========================================
 
 import os
@@ -176,7 +176,6 @@ PROMPTS = {
     ),
 }
 
-# تم التعديل: إزالة أي استهداف برمجي (CSS) لحقول الإدخال لمنع أي تعارض يخفي الحقل
 st.markdown(
     """
     <style>
@@ -275,13 +274,20 @@ st.markdown(
 # ==========================================
 st.sidebar.title("🎓 Elite English")
 
-# تم التعديل: إظهار المفتاح كأول عنصر أساسي بدون أي تعقيدات
+st.sidebar.markdown('<div class="side-heading">🔑 مفتاح التفعيل (API Key)</div>', unsafe_allow_html=True)
+
+# // تم التعديل: إصلاح مشكلة NameError القاتلة والتأكد من تطابق اسم المتغير بين الشريط الجانبي وقاعة المحادثة
 api_key_sidebar = st.sidebar.text_input(
-    "🔑 أدخل مفتاح Gemini API هنا:",
+    "أدخل مفتاح Gemini هنا:",
     value=os.environ.get("GEMINI_API_KEY", ""),
-    type="password"
+    type="password",
+    placeholder="AIzaSy..."
 )
 
+if not api_key_sidebar:
+    st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
+
+# // تم التعديل: إرجاع الموديل لقيمته الافتراضية بشكل بسيط وتجنب تعقيدات الـ session_state
 with st.sidebar.expander("⚙️ إعدادات الموديل (اختياري)"):
     model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL)
 
@@ -590,7 +596,7 @@ with tab_vocab:
 # ------------------------------------------
 with tab_chat:
     
-    # تم التعديل: إنشاء واجهة بديلة ضخمة إذا لم يتم إدخال المفتاح (مستحيل ألا تراها)
+    # // تم التعديل: ربط المفتاح بالمتغير القادم من الشريط الجانبي وتوفير حقل احتياطي يظهر بوضوح في المنتصف إذا كان فارغاً
     api_key = api_key_sidebar
     
     if not api_key or not api_key.strip():
@@ -601,7 +607,6 @@ with tab_chat:
         else:
             st.info("💡 ملاحظة: دفتر المفردات والملف الشخصي في الأعلى سيعملان بشكل طبيعي بدون المفتاح.")
             
-    # فقط في حال توفر المفتاح (من الشريط أو من منتصف الشاشة)، نقوم بتشغيل المحادثة
     if api_key and api_key.strip():
         mem_name = get_profile("name", "الطالب")
         mem_level = get_profile("level", "B1")
