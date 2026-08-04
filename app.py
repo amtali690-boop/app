@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v5 (Ultra Pro+) — UI Refresh
+# AI English Conversation Partner — v6 (Ultra Pro+) — UI Refresh 2 (Voice Player)
 # إصلاحات وتحسينات v5:
 # 1) استبدال موديل Gemini المتوقف (gemini-2.0-flash) بموديل قابل للتعديل من الشريط الجانبي
 #    (Google أوقفت دعم gemini-2.0-flash فعلياً في 1 يونيو 2026).
@@ -12,15 +12,21 @@
 # 7) مفتاح API القادم من متغيرات البيئة لم يعد يُعرض كاملاً داخل حقل نصي بالواجهة.
 # 8) استخراج Anki أصبح أكثر ثباتاً (يتجاهل أي Markdown زائد في رد النموذج).
 #
-# تحديثات واجهة إضافية (UI Refresh) — بدون أي تغيير على المنطق/الصوت/الـ API:
+# تحديثات واجهة (UI Refresh 1) — بدون أي تغيير على المنطق/الصوت/الـ API:
 # - تصميم عام أهدأ وأكثر احترافية (خلفية، بطاقات، تدرجات لونية خفيفة).
-# - رأس صفحة (Hero header) مع شارة توضح السيناريو الحالي والموديل الحالي.
+# - رأس صفحة (Hero header) مع شارة توضح السيناريو الحالي والصوت الحالي.
 # - شريط جانبي مقسّم لأقسام واضحة بعناوين وأيقونات وفواصل.
-# - فقاعات محادثة مخصصة بمظهر بطاقة، وشارة "AI يتكلم..." أثناء التفكير.
-# - "مشغل صوت" (Voice Player) بشكل بطاقة مميزة حول عنصر st.audio بدل ما يطلع عاري.
+# - فقاعات محادثة مخصصة بمظهر بطاقة، وأفاتار مختلف للمستخدم/الذكاء الاصطناعي.
 # - مؤشر تقدّم اختبار المستوى بشكل شريط ملوّن متدرّج مع نسبة مئوية.
-# - قسم Anki بشكل بطاقة نتيجة مرتبة مع عداد للكلمات المستخرجة.
-# - نفس كل الدوال والمتغيرات ونفس منطق الـ API والصوت والملفات المؤقتة تماماً كما هي.
+#
+# تحديثات واجهة (UI Refresh 2) — أيضاً بدون أي تغيير على منطق التوليد الصوتي نفسه:
+# - "مشغّل صوت" مخصص بالكامل على شكل رسالة صوتية (Waveform) بدل شريط الصوت الافتراضي للمتصفح:
+#   زر تشغيل/إيقاف دائري متدرّج، موجة صوت (Bars) تُلوَّن مع تقدّم التشغيل الفعلي، إمكانية
+#   الضغط على أي نقطة من الموجة للقفز إليها مباشرة، وعرض الوقت الحالي/الإجمالي. الملف الصوتي
+#   المشغَّل هو نفسه تماماً الناتج من edge_tts دون أي تعديل — فقط طريقة عرضه تغيّرت.
+# - بطاقة ترحيبية تظهر فقط قبل أول رسالة لتوجيه المستخدم الجديد.
+# - معاينة سريعة لبطاقات Anki المستخرجة (Front/Back) قبل التحميل.
+# - تذييل بسيط بالشريط الجانبي يعرض الموديل الحالي وعدد رسائل الجلسة.
 #
 # التحديثات السابقة (v4):
 # 1) اختبار تحديد المستوى يسأل 10 أسئلة كحد أدنى، وقد يمتد لـ 15 سؤال لضمان الدقة.
@@ -36,8 +42,12 @@ import shutil
 import hashlib
 import tempfile
 import asyncio
+import base64
+import random
+from string import Template
 
 import streamlit as st
+import streamlit.components.v1 as components
 import edge_tts
 from google import genai
 from google.genai import types
@@ -133,11 +143,6 @@ st.markdown(
             color: #a78bfa;
             border: 1px solid rgba(167, 139, 250, 0.3);
         }
-        .badge.green {
-            background: rgba(52, 211, 153, 0.12);
-            color: #34d399;
-            border: 1px solid rgba(52, 211, 153, 0.3);
-        }
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0f172a 0%, #0b1120 100%);
             border-right: 1px solid rgba(148,163,184,0.1);
@@ -157,22 +162,24 @@ st.markdown(
             padding: 4px 6px;
             margin-bottom: 6px;
         }
-        .voice-player-card {
-            margin-top: 6px;
-            padding: 10px 14px;
-            border-radius: 12px;
-            background: rgba(56, 189, 248, 0.06);
-            border: 1px solid rgba(56, 189, 248, 0.18);
+        div[data-testid="stChatInput"] {
+            border-radius: 14px;
         }
-        .voice-player-label {
-            font-size: 0.78rem;
-            color: #38bdf8;
-            font-weight: 700;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        div[data-testid="stAudioInput"] {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(148,163,184,0.12);
+            border-radius: 14px;
+            padding: 4px 8px;
         }
+        .empty-state-card {
+            text-align: center;
+            padding: 34px 20px;
+            border: 1px dashed rgba(148,163,184,0.25);
+            border-radius: 16px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+        }
+        .empty-state-card b { color: #e2e8f0; }
         .anki-result-card {
             background: rgba(52, 211, 153, 0.06);
             border: 1px solid rgba(52, 211, 153, 0.25);
@@ -293,6 +300,10 @@ if st.sidebar.button("🔄 Restart Session", width="stretch"):
         st.session_state.pop(k, None)
     st.rerun()
 
+st.sidebar.markdown("---")
+st.sidebar.caption(f"🧠 Model: {model_name}")
+st.sidebar.caption(f"💬 {len(st.session_state.get('messages', []))} رسالة في هذه الجلسة")
+
 # ==========================================
 # 3. تحويل النص لصوت بشري (Edge TTS)
 # ==========================================
@@ -307,14 +318,170 @@ def speak(text: str, voice: str) -> str:
     return out_path
 
 
+# ------------------------------------------
+# 3.b مشغّل صوت مخصص بشكل "رسالة صوتية" (Waveform) — شكل فقط.
+# يقرأ نفس ملف الـ mp3 الذي تنتجه speak() أعلاه بالضبط ويعرضه بواجهة تفاعلية:
+# زر تشغيل/إيقاف + موجة صوت تتلوّن مع التقدّم الفعلي + إمكانية القفز بالضغط على الموجة.
+# ------------------------------------------
+_VOICE_PLAYER_TEMPLATE = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  html, body { margin:0; padding:4px 0 0 0; background: transparent; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .vp-wrap {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.14), rgba(167,139,250,0.10));
+    border: 1px solid rgba(56,189,248,0.28);
+    border-radius: 999px;
+    padding: 8px 16px 8px 8px;
+    box-sizing: border-box;
+  }
+  .vp-btn {
+    flex: 0 0 auto;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, #38bdf8, #6366f1);
+    color: #ffffff;
+    font-size: 13px;
+    padding-left: 2px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(56,189,248,0.35);
+    transition: transform 0.12s ease, box-shadow 0.2s ease;
+  }
+  .vp-btn:active { transform: scale(0.90); }
+  .vp-wrap.playing .vp-btn {
+    box-shadow: 0 0 0 4px rgba(56,189,248,0.18), 0 2px 10px rgba(56,189,248,0.35);
+  }
+  .vp-wave {
+    position: relative;
+    width: ${wave_width}px;
+    height: 28px;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .vp-bars-bg, .vp-bars-fixed {
+    position: absolute; top: 0; left: 0;
+    width: ${wave_width}px; height: 100%;
+    display: flex; align-items: center; gap: 2px;
+  }
+  .vp-bars-bg span {
+    display: block; width: 3px; border-radius: 2px;
+    background: rgba(148,163,184,0.35);
+  }
+  .vp-bars-fixed span {
+    display: block; width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg, #38bdf8, #a78bfa);
+  }
+  .vp-clip {
+    position: absolute; top: 0; left: 0; height: 100%;
+    width: 0px; overflow: hidden;
+  }
+  .vp-time {
+    flex: 0 0 auto;
+    font-size: 11px; font-weight: 700;
+    color: #94a3b8; min-width: 34px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+  <div class="vp-wrap" id="wrap">
+    <button class="vp-btn" id="btn" aria-label="play">&#9658;</button>
+    <div class="vp-wave" id="wave">
+      <div class="vp-bars-bg">${bars}</div>
+      <div class="vp-clip" id="clip">
+        <div class="vp-bars-fixed">${bars}</div>
+      </div>
+    </div>
+    <span class="vp-time" id="timeLabel">0:00</span>
+    <audio id="aud" preload="auto" ${autoplay_attr} src="data:audio/mpeg;base64,${b64}"></audio>
+  </div>
+<script>
+  var audio = document.getElementById('aud');
+  var btn = document.getElementById('btn');
+  var wave = document.getElementById('wave');
+  var clip = document.getElementById('clip');
+  var timeLabel = document.getElementById('timeLabel');
+  var wrap = document.getElementById('wrap');
+  var WAVE_WIDTH = ${wave_width};
+
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) { return '0:00'; }
+    s = Math.round(s);
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    var rs = String(r);
+    if (rs.length < 2) { rs = '0' + rs; }
+    return m + ':' + rs;
+  }
+
+  audio.addEventListener('loadedmetadata', function () {
+    timeLabel.textContent = fmt(audio.duration);
+  });
+  audio.addEventListener('play', function () {
+    btn.innerHTML = '&#10074;&#10074;';
+    wrap.classList.add('playing');
+  });
+  audio.addEventListener('pause', function () {
+    btn.innerHTML = '&#9658;';
+    wrap.classList.remove('playing');
+  });
+  audio.addEventListener('ended', function () {
+    btn.innerHTML = '&#9658;';
+    wrap.classList.remove('playing');
+    clip.style.width = '0px';
+    timeLabel.textContent = fmt(audio.duration);
+  });
+  audio.addEventListener('timeupdate', function () {
+    if (audio.duration) {
+      var frac = audio.currentTime / audio.duration;
+      clip.style.width = (frac * WAVE_WIDTH) + 'px';
+      timeLabel.textContent = fmt(audio.currentTime);
+    }
+  });
+  btn.addEventListener('click', function () {
+    if (audio.paused) { audio.play().catch(function(){}); } else { audio.pause(); }
+  });
+  wave.addEventListener('click', function (e) {
+    var rect = wave.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var frac = Math.min(Math.max(x / rect.width, 0), 1);
+    if (isFinite(audio.duration)) {
+      audio.currentTime = frac * audio.duration;
+    }
+  });
+  if (audio.autoplay) {
+    audio.play().catch(function(){});
+  }
+</script>
+</body>
+</html>
+""")
+
+
+def _wave_bar_heights(seed_key: str, bars: int = 30, low: int = 6, high: int = 24):
+    rng = random.Random(seed_key)
+    return [rng.randint(low, high) for _ in range(bars)]
+
+
 def render_voice_player(audio_path: str, autoplay: bool):
-    """يعرض عنصر الصوت داخل بطاقة مصغّرة بدل ما يطلع عارياً — شكل فقط."""
-    st.markdown(
-        '<div class="voice-player-card"><div class="voice-player-label">🎧 Voice reply</div>',
-        unsafe_allow_html=True,
+    """يبني ويعرض مشغّل الصوت المخصص (Waveform) لملف mp3 معيّن. الملف نفسه غير متأثر إطلاقاً."""
+    with open(audio_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("ascii")
+
+    heights = _wave_bar_heights(os.path.basename(audio_path))
+    bars_html = "".join(f'<span style="height:{h}px"></span>' for h in heights)
+
+    html = _VOICE_PLAYER_TEMPLATE.substitute(
+        wave_width=150,
+        bars=bars_html,
+        autoplay_attr="autoplay" if autoplay else "",
+        b64=b64,
     )
-    st.audio(audio_path, format="audio/mp3", autoplay=autoplay)
-    st.markdown("</div>", unsafe_allow_html=True)
+    components.html(html, height=60, scrolling=False)
 
 # ==========================================
 # 4. رأس الصفحة (Hero) + الاتصال بـ Gemini وإدارة الجلسة
@@ -382,6 +549,19 @@ if scenario == "Speaking Placement Test (10+ Questions)":
 # 5. عرض المحادثة السابقة
 # ==========================================
 messages = st.session_state.messages
+
+if not messages:
+    st.markdown(
+        """
+        <div class="empty-state-card">
+            <div style="font-size:2rem; margin-bottom:8px;">🎙️</div>
+            <b>ابدأ محادثتك الأولى!</b><br/>
+            اكتب رسالة بالأسفل أو سجّل صوتك للتمرّن على الإنجليزي.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 last_index = len(messages) - 1
 for i, msg in enumerate(messages):
     avatar = "🤖" if msg["role"] == "assistant" else "🧑"
@@ -505,12 +685,12 @@ Conversation:
 
 with col2:
     if "anki_cards" in st.session_state:
-        card_count = len([ln for ln in st.session_state.anki_cards.splitlines() if ln.strip()])
+        card_lines = [ln for ln in st.session_state.anki_cards.splitlines() if ln.strip()]
         st.markdown(
             f"""
             <div class="anki-result-card">
                 <b>✅ تم التجهيز بنجاح!</b><br/>
-                <span style="color:#94a3b8;">تم استخراج {card_count} بطاقة جاهزة للتحميل.</span>
+                <span style="color:#94a3b8;">تم استخراج {len(card_lines)} بطاقة جاهزة للتحميل.</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -522,4 +702,13 @@ with col2:
             file_name=f"anki_vocabulary_{int(time.time())}.txt",
             mime="text/plain",
             width="stretch",
-    )
+        )
+        with st.expander("👀 معاينة سريعة للبطاقات"):
+            rows = []
+            for ln in card_lines:
+                parts = ln.split("\t")
+                if len(parts) >= 2:
+                    rows.append({"Front": parts[0], "Back": parts[1]})
+                else:
+                    rows.append({"Front": ln, "Back": ""})
+            st.dataframe(rows, width="stretch", hide_index=True)
