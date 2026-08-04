@@ -1,12 +1,12 @@
 # ==========================================
-# AI English Conversation Partner — v11 (UI Polished & No Anki)
+# AI English Conversation Partner — v12 (Deep UI Forcing & Bug Fixes)
 # الميزات:
 # 1) AI Memory & Profile
 # 2) Vocabulary Notebook
 # 3) Real-time Evaluation
 # 4) Voice-Only Call Mode
 # 5) Granular Settings
-# تم إزالة Anki وتحسين جمالية الواجهات مع الحفاظ على الهيكلة.
+# تم إجبار Streamlit على قبول التنسيقات العصرية وتحسين متانة الأكواد.
 # ==========================================
 
 import os
@@ -109,7 +109,6 @@ def get_stat(key: str) -> int:
         print(f"DB Error (get_stat): {e}")
         return 0
 
-# مجلد صوتي مستقل لكل جلسة
 if "session_audio_dir" not in st.session_state:
     st.session_state.session_audio_dir = os.path.join(DB_DIR, uuid.uuid4().hex)
     os.makedirs(st.session_state.session_audio_dir, exist_ok=True)
@@ -156,25 +155,61 @@ PROMPTS = {
     ),
 }
 
-# تم التعديل: تحسين وتطوير الـ CSS ليصبح أكثر عصرية، مع إضافة ظلال ناعمة (Shadows) وحواف أكثر دائرية وتأثيرات حركية بدون تغيير ترتيب العناصر.
+# تم التعديل: استهداف عناصر Streamlit الأصلية بقوة (Force Override) لضمان تغيير الواجهة جذرياً مع إخفاء العناصر غير المرغوبة.
 st.markdown(
     """
     <style>
+        /* إخفاء القوائم العلوية والسفلية الافتراضية لستريم ليت */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        
+        /* تحسين شكل حاوية التطبيق بالكامل */
         .stApp {
             background-color: var(--background-color);
         }
         
+        /* إجبار الأزرار على أخذ شكل عصري متفاعل */
+        div[data-testid="stButton"] > button {
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+            border: 1px solid rgba(14, 165, 233, 0.3) !important;
+            background-color: transparent !important;
+        }
+        div[data-testid="stButton"] > button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15) !important;
+            border-color: #0ea5e9 !important;
+            color: #0ea5e9 !important;
+        }
+
+        /* تحسين فقاعات المحادثة (Chat Messages) لتكون أجمل ومميزة */
+        div[data-testid="stChatMessage"] {
+            background-color: rgba(128, 128, 128, 0.03) !important;
+            border-radius: 12px !important;
+            padding: 15px 20px !important;
+            margin-bottom: 12px !important;
+            border: 1px solid rgba(128, 128, 128, 0.1) !important;
+        }
+        
+        /* تحسين حقول الإدخال */
+        div[data-baseweb="input"], div[data-baseweb="textarea"] {
+            border-radius: 8px !important;
+        }
+        
+        /* البطاقة الترحيبية */
         .hero-card {
-            background-color: var(--secondary-background-color);
+            background: linear-gradient(145deg, rgba(14, 165, 233, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
             border-left: 5px solid #0ea5e9;
             border-radius: 12px; 
             padding: 24px; 
             margin-bottom: 24px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* تم التعديل: إضافة ظل ناعم */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         }
         .hero-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
         .hero-sub { font-size: 1rem; opacity: 0.8; margin-bottom: 16px; }
         
+        /* البادجات (العلامات) */
         .badge {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
@@ -183,28 +218,31 @@ st.markdown(
             border: 1px solid rgba(14, 165, 233, 0.2);
         }
         
+        /* بطاقة التقييم */
         .eval-card {
-            background-color: var(--secondary-background-color);
+            background-color: rgba(128, 128, 128, 0.02);
             border: 1px solid rgba(128, 128, 128, 0.15);
             border-radius: 10px; 
             padding: 16px; 
             margin-top: 8px;
             margin-bottom: 12px;
             font-size: 0.95rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); /* تم التعديل: ظل ناعم لبطاقات التقييم */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
         .eval-scores { 
             display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; 
         }
         .eval-score-item {
-            background-color: rgba(14, 165, 233, 0.1);
+            background-color: rgba(14, 165, 233, 0.08);
             color: #0ea5e9;
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85rem;
             font-weight: 700;
+            border: 1px solid rgba(14, 165, 233, 0.15);
         }
         
+        /* العناوين الجانبية */
         .side-heading {
             font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
             opacity: 0.6; margin: 24px 0 8px 0;
@@ -212,17 +250,19 @@ st.markdown(
             padding-bottom: 4px;
         }
         
+        /* صفوف المفردات */
         .vocab-row {
-            background-color: var(--secondary-background-color);
+            background-color: rgba(128, 128, 128, 0.02);
             border: 1px solid rgba(128, 128, 128, 0.1);
             border-radius: 10px;
             padding: 16px;
             margin-bottom: 12px;
-            transition: all 0.3s ease; /* تم التعديل: إضافة حركة سلسة عند التمرير */
+            transition: all 0.3s ease;
         }
         .vocab-row:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* تم التعديل: بروز البطاقة عند التأشير عليها */
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
             transform: translateY(-2px);
+            border-color: rgba(14, 165, 233, 0.3);
         }
     </style>
     """,
@@ -283,7 +323,7 @@ autoplay_audio = st.sidebar.checkbox("🔊 التشغيل التلقائي لل�
 voice_only_mode = st.sidebar.toggle("🎙️ وضع المكالمة الصوتية", value=False, help="يخفي لوحة المفاتيح لتعتمد كلياً على التحدث بالمايكرفون.")
 
 st.sidebar.markdown('<div class="side-heading">⚙️ خيارات الجلسة</div>', unsafe_allow_html=True)
-if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True, type="primary"):
+if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True):
     for k in list(st.session_state.keys()):
         del st.session_state[k]
     st.rerun()
@@ -297,21 +337,24 @@ async def _synthesize(text: str, voice: str, out_path: str):
 
 def speak(text: str, voice: str) -> str:
     out_path = os.path.join(AUDIO_DIR, f"tts_{int(time.time() * 1000)}.mp3")
+    # تم التعديل: تحسين فحص جودة خيوط المعالجة (Threads) لمنع أي أخطاء متعلقة بـ asyncio
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            def run_in_thread():
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                new_loop.run_until_complete(_synthesize(text, voice, out_path))
-                new_loop.close()
-            thread = threading.Thread(target=run_in_thread)
-            thread.start()
-            thread.join()
-        else:
-            loop.run_until_complete(_synthesize(text, voice, out_path))
+        loop = asyncio.get_running_loop()
     except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        def run_in_thread():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            new_loop.run_until_complete(_synthesize(text, voice, out_path))
+            new_loop.close()
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join()
+    else:
         asyncio.run(_synthesize(text, voice, out_path))
+        
     return out_path
 
 _VOICE_PLAYER_TEMPLATE = Template("""
@@ -322,7 +365,7 @@ _VOICE_PLAYER_TEMPLATE = Template("""
   html, body { margin:0; padding:2px 0 0 0; background: transparent; font-family: sans-serif; }
   .vp-wrap {
     display: inline-flex; align-items: center; gap: 12px;
-    background-color: rgba(128, 128, 128, 0.1);
+    background-color: rgba(128, 128, 128, 0.08);
     border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 30px; padding: 6px 14px 6px 6px;
   }
   .vp-btn {
@@ -429,7 +472,7 @@ with tab_profile:
             p_goals = st.text_input("هدف التعلم (مثال: التحضير لـ IELTS، العمل، محادثة عامة):", value=get_profile("goals", ""))
             p_notes = st.text_area("ملاحظات خاصة لمعلمك الذكي (مثال: التركيز على نطق الكلمات، القواعد...):", value=get_profile("notes", ""))
             
-            if st.form_submit_button("💾 حفظ البيانات وتحديث الذاكرة", type="primary"):
+            if st.form_submit_button("💾 حفظ البيانات وتحديث الذاكرة"):
                 set_profile("name", p_name)
                 set_profile("level", p_level)
                 set_profile("goals", p_goals)
@@ -439,7 +482,6 @@ with tab_profile:
     with col_prof2:
         st.markdown("### 📊 إحصائيات الأداء")
         st.info(f"**💬 إجمالي الرسائل:** {get_stat('total_messages')}")
-        # تم التعديل: تغيير مسمى إحصائيات المفردات وإزالة أي إشارة لـ Anki
         st.info(f"**📓 كلمات الدفتر المحفوظة:** {get_stat('total_vocab_saved')}")
         st.info(f"**📚 كلمات متفاعل معها:** {get_stat('total_words')}")
 
@@ -465,7 +507,6 @@ with tab_vocab:
                                       (new_word.strip(), new_type, new_meaning.strip(), new_example.strip(), "Needs Review"))
                             conn.commit()
                         st.success(f"تم الحفظ: {new_word}")
-                        # تم التعديل: تغيير مفتاح الإحصائية ليتوافق مع الحفظ في الدفتر فقط
                         update_stat("total_vocab_saved", 1)
                     except Exception as e:
                         st.error(f"حدث خطأ: {e}")
@@ -606,7 +647,8 @@ with tab_chat:
 
             eval_data = None
             display_reply = full_reply
-            eval_match = re.search(r"\[EVAL\|(.*?)\]", full_reply, re.DOTALL)
+            # تم التعديل: تحسين وتوسيع الـ Regex ليتمكن من التقاط قالب التقييم حتى مع وجود مسافات غير متوقعة أو أسطر جديدة لتجنب اختلال النص.
+            eval_match = re.search(r"\[EVAL\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
             if eval_match:
                 eval_str = eval_match.group(1).replace('\n', '')
                 display_reply = full_reply.replace(eval_match.group(0), "").strip()
@@ -719,5 +761,3 @@ with tab_chat:
         if typed:
             handle_user_message(typed)
             st.rerun()
-
-    # تم التعديل: تمت إزالة جزء الاستخراج التلقائي للمفردات عبر الذكاء الاصطناعي (ميزة Anki) بالكامل من هنا بناءً على طلبك.
