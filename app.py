@@ -1,12 +1,12 @@
 # ==========================================
-# AI English Conversation Partner — v10 (Elite UI/UX Redesign)
+# AI English Conversation Partner — v11 (UI Polished & No Anki)
 # الميزات:
 # 1) AI Memory & Profile
 # 2) Vocabulary Notebook
 # 3) Real-time Evaluation
 # 4) Voice-Only Call Mode
 # 5) Granular Settings
-# تم إعادة تصميم الواجهة بالكامل لتكون عملية ومريحة للعين.
+# تم إزالة Anki وتحسين جمالية الواجهات مع الحفاظ على الهيكلة.
 # ==========================================
 
 import os
@@ -119,7 +119,6 @@ AUDIO_DIR = st.session_state.session_audio_dir
 # ==========================================
 # 1. إعدادات الصفحة والتصميم (UI & CSS)
 # ==========================================
-# تم التعديل: تغيير عنوان الصفحة وتوسيع العرض الافتراضي لتحسين الرؤية
 st.set_page_config(page_title="Elite English Partner", page_icon="🎓", layout="wide")
 
 DEFAULT_MODEL = "gemini-2.5-flash"
@@ -157,57 +156,55 @@ PROMPTS = {
     ),
 }
 
-# تم التعديل: إعادة تصميم CSS بالكامل ليصبح هادئاً، بخلفيات نظيفة، وحواف ناعمة، وإلغاء الألوان الصارخة التي ترهق العين.
+# تم التعديل: تحسين وتطوير الـ CSS ليصبح أكثر عصرية، مع إضافة ظلال ناعمة (Shadows) وحواف أكثر دائرية وتأثيرات حركية بدون تغيير ترتيب العناصر.
 st.markdown(
     """
     <style>
-        /* إعدادات عامة مريحة للعين */
         .stApp {
             background-color: var(--background-color);
         }
         
-        /* البطاقة الترحيبية - تصميم مسطح ونظيف */
         .hero-card {
-            background-color: rgba(128, 128, 128, 0.05);
-            border-left: 4px solid #0ea5e9;
-            border-radius: 8px; 
-            padding: 20px 24px; 
-            margin-bottom: 20px;
+            background-color: var(--secondary-background-color);
+            border-left: 5px solid #0ea5e9;
+            border-radius: 12px; 
+            padding: 24px; 
+            margin-bottom: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* تم التعديل: إضافة ظل ناعم */
         }
-        .hero-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
-        .hero-sub { font-size: 0.95rem; opacity: 0.8; margin-bottom: 16px; }
+        .hero-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
+        .hero-sub { font-size: 1rem; opacity: 0.8; margin-bottom: 16px; }
         
-        /* تصميم البادجات (الشارات) */
         .badge {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: 500;
+            padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
             background-color: rgba(14, 165, 233, 0.1); 
             color: #0ea5e9; 
             border: 1px solid rgba(14, 165, 233, 0.2);
         }
         
-        /* بطاقة التقييم - واضحة ومقروءة */
         .eval-card {
-            background-color: rgba(128, 128, 128, 0.05);
-            border: 1px solid rgba(128, 128, 128, 0.2);
-            border-radius: 8px; 
-            padding: 12px 16px; 
+            background-color: var(--secondary-background-color);
+            border: 1px solid rgba(128, 128, 128, 0.15);
+            border-radius: 10px; 
+            padding: 16px; 
             margin-top: 8px;
             margin-bottom: 12px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); /* تم التعديل: ظل ناعم لبطاقات التقييم */
         }
         .eval-scores { 
-            display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; 
+            display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; 
         }
         .eval-score-item {
-            background-color: rgba(128, 128, 128, 0.1);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 600;
+            background-color: rgba(14, 165, 233, 0.1);
+            color: #0ea5e9;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
         }
         
-        /* العناوين الجانبية */
         .side-heading {
             font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
             opacity: 0.6; margin: 24px 0 8px 0;
@@ -215,13 +212,17 @@ st.markdown(
             padding-bottom: 4px;
         }
         
-        /* تحسين مظهر الكلمات في دفتر المفردات */
         .vocab-row {
-            background-color: rgba(128, 128, 128, 0.03);
+            background-color: var(--secondary-background-color);
             border: 1px solid rgba(128, 128, 128, 0.1);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease; /* تم التعديل: إضافة حركة سلسة عند التمرير */
+        }
+        .vocab-row:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* تم التعديل: بروز البطاقة عند التأشير عليها */
+            transform: translateY(-2px);
         }
     </style>
     """,
@@ -231,7 +232,6 @@ st.markdown(
 # ==========================================
 # 2. الشريط الجانبي: الإعدادات والتحكم
 # ==========================================
-# تم التعديل: تبسيط الشريط الجانبي ووضع الإعدادات غير المتكررة داخل Expanders لتقليل الفوضى
 st.sidebar.title("🎓 Elite English")
 st.sidebar.caption("بيئة تعليمية هادئة وذكية")
 
@@ -280,7 +280,6 @@ VOICE_MAP = {
 voice_id = VOICE_MAP[voice_label]
 
 autoplay_audio = st.sidebar.checkbox("🔊 التشغيل التلقائي للصوت", value=True)
-# تم التعديل: توضيح وصف وضع المكالمة الصوتية
 voice_only_mode = st.sidebar.toggle("🎙️ وضع المكالمة الصوتية", value=False, help="يخفي لوحة المفاتيح لتعتمد كلياً على التحدث بالمايكرفون.")
 
 st.sidebar.markdown('<div class="side-heading">⚙️ خيارات الجلسة</div>', unsafe_allow_html=True)
@@ -315,7 +314,6 @@ def speak(text: str, voice: str) -> str:
         asyncio.run(_synthesize(text, voice, out_path))
     return out_path
 
-# تم التعديل: تحسين ألوان مشغل الصوت ليكون متوافقاً مع الوضعين المظلم والمضيء ولطيفاً على العين
 _VOICE_PLAYER_TEMPLATE = Template("""
 <!DOCTYPE html>
 <html>
@@ -403,7 +401,6 @@ def render_voice_player(audio_path: str, autoplay: bool):
 # ==========================================
 # 4. بناء تبويبات المنصة الاحترافية (Tabs)
 # ==========================================
-# تم التعديل: ترتيب التبويبات لتكون أكثر منطقية وأسهل وصولاً
 tab_chat, tab_vocab, tab_profile = st.tabs([
     "💬 قاعة المحادثة", 
     "📓 دفتر المفردات (Vocab)", 
@@ -411,7 +408,7 @@ tab_chat, tab_vocab, tab_profile = st.tabs([
 ])
 
 # ------------------------------------------
-# التبويب 3: الملف الشخصي والإحصائيات (مدمج لتحسين المساحة)
+# التبويب 3: الملف الشخصي والإحصائيات
 # ------------------------------------------
 with tab_profile:
     st.subheader("الملف الشخصي وذاكرة الذكاء الاصطناعي")
@@ -442,7 +439,8 @@ with tab_profile:
     with col_prof2:
         st.markdown("### 📊 إحصائيات الأداء")
         st.info(f"**💬 إجمالي الرسائل:** {get_stat('total_messages')}")
-        st.info(f"**📇 بطاقات Anki:** {get_stat('total_anki')}")
+        # تم التعديل: تغيير مسمى إحصائيات المفردات وإزالة أي إشارة لـ Anki
+        st.info(f"**📓 كلمات الدفتر المحفوظة:** {get_stat('total_vocab_saved')}")
         st.info(f"**📚 كلمات متفاعل معها:** {get_stat('total_words')}")
 
 # ------------------------------------------
@@ -467,13 +465,13 @@ with tab_vocab:
                                       (new_word.strip(), new_type, new_meaning.strip(), new_example.strip(), "Needs Review"))
                             conn.commit()
                         st.success(f"تم الحفظ: {new_word}")
-                        update_stat("total_anki", 1)
+                        # تم التعديل: تغيير مفتاح الإحصائية ليتوافق مع الحفظ في الدفتر فقط
+                        update_stat("total_vocab_saved", 1)
                     except Exception as e:
                         st.error(f"حدث خطأ: {e}")
                 else:
                     st.warning("يرجى كتابة الكلمة أولاً.")
 
-    # تم التعديل: عرض الكلمات المحفوظة بطريقة مرتبة باستخدام الحاويات الأنيقة
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
@@ -492,16 +490,15 @@ with tab_vocab:
                 <div class="vocab-row">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <strong style="font-size:1.1rem; color:#0ea5e9;">{r_word}</strong> 
-                            <span style="opacity:0.6; font-size:0.85rem;">({r_type})</span><br>
-                            <span style="font-weight:600;">{r_meaning}</span>
-                            {f'<br><i style="opacity:0.8; font-size:0.9rem;">"{r_example}"</i>' if r_example else ''}
+                            <strong style="font-size:1.2rem; color:#0ea5e9;">{r_word}</strong> 
+                            <span style="opacity:0.6; font-size:0.9rem; margin-left:6px;">({r_type})</span><br>
+                            <span style="font-weight:600; font-size:1rem;">{r_meaning}</span>
+                            {f'<br><i style="opacity:0.8; font-size:0.95rem; margin-top:4px; display:inline-block;">"{r_example}"</i>' if r_example else ''}
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # أزرار الحالة أسفل كل كلمة مباشرة لتجنب تداخل الأعمدة
                 status_color = "🟢 محفوظة (Learned)" if r_status == "Learned" else "🟠 تحتاج مراجعة"
                 col_btn1, col_btn2 = st.columns([1, 4])
                 if col_btn1.button("تغيير الحالة", key=f"v_toggle_{r_id}", help="التبديل بين محفوظة وتحتاج مراجعة"):
@@ -511,9 +508,9 @@ with tab_vocab:
                         c.execute("UPDATE vocab_notebook SET status = ? WHERE id = ?", (new_st, r_id))
                         conn.commit()
                     st.rerun()
-                col_btn2.markdown(f"<div style='margin-top:5px; font-size:0.9rem;'>الحالة: {status_color}</div>", unsafe_allow_html=True)
+                col_btn2.markdown(f"<div style='margin-top:5px; font-size:0.9rem; font-weight:500;'>الحالة: {status_color}</div>", unsafe_allow_html=True)
         else:
-            st.info("لم تقم بإضافة أي كلمات بعد. يمكنك إضافتها يدوياً أو استخراجها من المحادثة.")
+            st.info("لم تقم بإضافة أي كلمات بعد.")
     except Exception as e:
         st.error(f"خطأ في عرض المفردات: {e}")
 
@@ -559,7 +556,6 @@ with tab_chat:
             st.session_state.current_config = config_signature
             st.session_state.messages = []
             st.session_state.test_question_count = 0
-            # تم التعديل: التأكد من تهيئة المتغيرات لتجنب الأخطاء
             st.session_state.last_played_audio = None
             st.session_state.audio_input_key = 0
 
@@ -571,7 +567,6 @@ with tab_chat:
         st.error(f"⚠️ خطأ في الاتصال بالخادم (تأكد من صحة المفتاح أو الاتصال): `{e}`")
         st.stop()
 
-    # رأس الصفحة الترحيبي داخل غرفة المحادثة - تم تحسين التصميم
     st.markdown(f"""
         <div class="hero-card">
             <div class="hero-title">أهلاً بك، {mem_name or 'صديقي'}!</div>
@@ -600,7 +595,6 @@ with tab_chat:
             st.write(text)
 
         with st.chat_message("assistant", avatar="🤖"):
-            # تم التعديل: استبدال الأنيميشن المزعج (CSS Typing) بـ Spinner أصلي ونظيف من Streamlit
             with st.spinner("المعلم يكتب الرد..."):
                 try:
                     response = st.session_state.chat_session.send_message(text)
@@ -610,7 +604,6 @@ with tab_chat:
                     st.session_state.messages.pop() 
                     return
 
-            # فصل التقييم عن نص الرد الأساسي
             eval_data = None
             display_reply = full_reply
             eval_match = re.search(r"\[EVAL\|(.*?)\]", full_reply, re.DOTALL)
@@ -624,7 +617,6 @@ with tab_chat:
                         eval_parts[k.strip()] = v.strip()
                 eval_data = eval_parts
 
-            # عرض التقييم بتصميم نظيف
             if eval_data:
                 st.markdown(f"""
                     <div class="eval-card">
@@ -634,7 +626,7 @@ with tab_chat:
                             <span class="eval-score-item">Natural: {eval_data.get('Natural','-')}</span>
                             <span class="eval-score-item">Fluency: {eval_data.get('Fluency','-')}</span>
                         </div>
-                        <div style="margin-top:6px; opacity:0.9;"><b>التصحيح:</b> {eval_data.get('Correction','لا يوجد ملاحظات، عمل ممتاز!')}</div>
+                        <div style="margin-top:8px; font-weight:500; opacity:0.9;"><b>التصحيح:</b> {eval_data.get('Correction','لا يوجد ملاحظات، عمل ممتاز!')}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -657,7 +649,6 @@ with tab_chat:
         update_stat("total_messages", 1)
         update_stat("total_words", len(display_reply.split()))
 
-    # عرض الرسائل السابقة
     messages = st.session_state.messages
     if not messages:
         st.info("ابدأ التحدث بالأسفل لبدء المحادثة الصوتية أو النصية!")
@@ -676,7 +667,7 @@ with tab_chat:
                             <span class="eval-score-item">Natural: {ev.get('Natural','-')}</span>
                             <span class="eval-score-item">Fluency: {ev.get('Fluency','-')}</span>
                         </div>
-                        <div style="margin-top:6px; opacity:0.9;"><b>التصحيح:</b> {ev.get('Correction','عمل ممتاز!')}</div>
+                        <div style="margin-top:8px; font-weight:500; opacity:0.9;"><b>التصحيح:</b> {ev.get('Correction','عمل ممتاز!')}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -689,18 +680,15 @@ with tab_chat:
                 if is_fresh:
                     st.session_state.last_played_audio = audio_path
 
-            # تم التعديل: وضع زر الحذف بشكل أنيق وصغير لتجنب تشويه المحادثة
             if st.button("🗑️", key=f"del_{i}", help="حذف هذه الرسالة"):
                 st.session_state.messages.pop(i)
                 st.rerun()
 
-    # قسم الإدخال (صوت أو نص)
     st.markdown("<br><hr style='opacity:0.2;'>", unsafe_allow_html=True)
     
     if voice_only_mode:
         st.success("🎙️ وضع المكالمة الصوتية مفعل. يمكنك استخدام زر المايكرفون للتحدث بشكل مباشر.")
 
-    # ضمان تهيئة مفتاح المايك
     if "audio_input_key" not in st.session_state:
         st.session_state.audio_input_key = 0
 
@@ -726,61 +714,10 @@ with tab_chat:
             st.session_state.audio_input_key += 1
             st.rerun()
 
-    # إخفاء مربع النص إذا كان وضع المكالمة الصوتية مفعلاً
     if not voice_only_mode:
         typed = st.chat_input("أو اكتب رسالتك النصية هنا...")
         if typed:
             handle_user_message(typed)
             st.rerun()
 
-    # استخراج Anki التلقائي من المحادثة - تم وضعه بداخل Expander لتنظيف الواجهة
-    st.markdown("<br>", unsafe_allow_html=True)
-    with st.expander("🛠️ أدوات متقدمة: استخراج المفردات"):
-        st.write("يمكنك تحليل هذه المحادثة بالكامل لاستخراج أهم 5 كلمات أو مصطلحات وإضافتها تلقائياً لدفتر مفرداتك.")
-        if st.button("📇 استخراج المفردات وحفظها لـ Anki", use_container_width=True):
-            user_turns = [m for m in st.session_state.messages if m["role"] == "user"]
-            if not user_turns:
-                st.warning("تحتاج إلى بدء المحادثة أولاً قبل استخراج المفردات!")
-            else:
-                with st.spinner("✨ جاري تحليل المحادثة واستخراج الكلمات الجديدة..."):
-                    conversation_text = "\n".join(f"{m['role']}: {m['content']}" for m in st.session_state.messages)
-                    anki_prompt = f"""Analyze this conversation. Extract 5 useful words or phrases.
-    Output ONLY plain tab-separated lines in this exact format:
-    Word[TAB]Arabic Meaning + Example Sentence
-
-    Conversation:
-    {conversation_text}"""
-                    try:
-                        anki_result = client.models.generate_content(
-                            model=model_name, contents=anki_prompt, config=types.GenerateContentConfig(temperature=0.3)
-                        )
-                        anki_text = anki_result.text.strip()
-                        
-                        try:
-                            with sqlite3.connect(DB_PATH) as conn:
-                                c = conn.cursor()
-                                for line in anki_text.splitlines():
-                                    if "\t" in line:
-                                        parts = line.split("\t", 1)
-                                        w = parts[0].strip()
-                                        m = parts[1].strip()
-                                        c.execute("INSERT OR IGNORE INTO vocab_notebook (word, word_type, meaning_ar, example, status) VALUES (?, ?, ?, ?, ?)",
-                                                  (w, "Phrase", m, "", "Needs Review"))
-                                conn.commit()
-                        except Exception as db_err:
-                            print(f"Error saving Anki to DB: {db_err}")
-
-                        st.session_state.anki_cards = anki_text
-                        update_stat("total_anki", len(anki_text.splitlines()))
-                        st.success("✅ تمت إضافة المفردات بنجاح إلى الدفتر! يمكنك تنزيلها بصيغة نصية أيضاً.")
-                    except Exception as e:
-                        st.error(f"خطأ أثناء استخراج المفردات: {e}")
-
-        if "anki_cards" in st.session_state:
-            st.download_button(
-                label="⬇️ تحميل المفردات كملف Anki (.txt)",
-                data=st.session_state.anki_cards,
-                file_name=f"anki_elite_{int(time.time())}.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
+    # تم التعديل: تمت إزالة جزء الاستخراج التلقائي للمفردات عبر الذكاء الاصطناعي (ميزة Anki) بالكامل من هنا بناءً على طلبك.
