@@ -1,5 +1,5 @@
 # ==========================================
-# AI English Conversation Partner — v17 (API Key State Fixed)
+# AI English Conversation Partner — v18 (Bulletproof API Key & UI)
 # ==========================================
 
 import os
@@ -115,7 +115,7 @@ def cleanup_old_audio_files(days=7):
                     if os.path.getmtime(fpath) < cutoff_time:
                         try:
                             os.remove(fpath)
-                        except OSError:
+                        except Exception:
                             pass
     except Exception as e:
         print(f"⚠️ Cleanup error: {e}")
@@ -176,6 +176,7 @@ PROMPTS = {
     ),
 }
 
+# تم التعديل: إزالة أي استهداف برمجي (CSS) لحقول الإدخال لمنع أي تعارض يخفي الحقل
 st.markdown(
     """
     <style>
@@ -273,29 +274,16 @@ st.markdown(
 # 2. الشريط الجانبي: الإعدادات
 # ==========================================
 st.sidebar.title("🎓 Elite English")
-st.sidebar.caption("بيئة تعليمية هادئة وذكية")
 
-st.sidebar.markdown('<div class="side-heading">🔑 مفتاح التفعيل (API Key)</div>', unsafe_allow_html=True)
-
-# // تم التعديل: تخزين قيمة المفتاح والموديل في session_state لحمايتها من المسح عند تحديث الواجهة.
-if "api_key_input" not in st.session_state:
-    st.session_state.api_key_input = os.environ.get("GEMINI_API_KEY", "")
-if "model_input" not in st.session_state:
-    st.session_state.model_input = DEFAULT_MODEL
-
-# // تم التعديل: إزالة 'value=' والاعتماد على 'key' فقط للحفاظ على ما يكتبه المستخدم.
-api_key = st.sidebar.text_input(
-    "أدخل مفتاح Gemini هنا:", 
-    type="password", 
-    key="api_key_input",
-    placeholder="AIzaSy..."
+# تم التعديل: إظهار المفتاح كأول عنصر أساسي بدون أي تعقيدات
+api_key_sidebar = st.sidebar.text_input(
+    "🔑 أدخل مفتاح Gemini API هنا:",
+    value=os.environ.get("GEMINI_API_KEY", ""),
+    type="password"
 )
 
-if not api_key:
-    st.sidebar.warning("⚠️ التطبيق يحتاج إلى المفتاح ليعمل بشكل كامل.")
-
 with st.sidebar.expander("⚙️ إعدادات الموديل (اختياري)"):
-    model_name = st.text_input("Gemini Model:", key="model_input")
+    model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL)
 
 st.sidebar.markdown('<div class="side-heading">💬 بيئة المحادثة</div>', unsafe_allow_html=True)
 scenario = st.sidebar.selectbox(
@@ -333,8 +321,7 @@ voice_only_mode = st.sidebar.toggle("🎙️ وضع المكالمة الصوت�
 st.sidebar.markdown('<div class="side-heading">⚙️ خيارات الجلسة</div>', unsafe_allow_html=True)
 if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True):
     for k in list(st.session_state.keys()):
-        # استثناء المتغيرات اللي بتلزمنا حتى ما ينهار التطبيق
-        if k not in ["session_audio_dir", "audio_input_key", "api_key_input", "model_input"]:
+        if k not in ["session_audio_dir", "audio_input_key"]:
             del st.session_state[k]
     st.rerun()
 
@@ -602,9 +589,20 @@ with tab_vocab:
 # التبويب 1: المحادثة (Main Chat)
 # ------------------------------------------
 with tab_chat:
+    
+    # تم التعديل: إنشاء واجهة بديلة ضخمة إذا لم يتم إدخال المفتاح (مستحيل ألا تراها)
+    api_key = api_key_sidebar
+    
     if not api_key or not api_key.strip():
-        st.error("⚠️ يرجى إدخال Gemini API Key في الشريط الجانبي لبدء المحادثة. باقي ميزات التطبيق (الدفتر والملف) تعمل بشكل طبيعي.")
-    else:
+        st.warning("⚠️ نظام المحادثة معلّق: يرجى إدخال مفتاح Gemini API في الشريط الجانبي، أو في الحقل أدناه.")
+        api_key_fallback = st.text_input("🔑 أدخل المفتاح هنا للبدء فوراً:", type="password")
+        if api_key_fallback:
+            api_key = api_key_fallback
+        else:
+            st.info("💡 ملاحظة: دفتر المفردات والملف الشخصي في الأعلى سيعملان بشكل طبيعي بدون المفتاح.")
+            
+    # فقط في حال توفر المفتاح (من الشريط أو من منتصف الشاشة)، نقوم بتشغيل المحادثة
+    if api_key and api_key.strip():
         mem_name = get_profile("name", "الطالب")
         mem_level = get_profile("level", "B1")
         mem_goals = get_profile("goals", "محادثة عامة")
@@ -629,7 +627,6 @@ with tab_chat:
                 history_parts = []
                 last_role = None
                 
-                # // تم التعديل: تجميع الرسائل بشكل آمن بدون التعديل المباشر على Object قد يكون محمي
                 for m in messages:
                     role = "user" if m["role"] == "user" else "model"
                     if role == last_role and history_parts:
