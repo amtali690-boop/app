@@ -1,5 +1,11 @@
 # ==========================================
-# AI English Conversation Partner — v9.1 (Elite Language Platform - Fixed)
+# AI English Conversation Partner — v9 (Elite Language Platform)
+# الميزات الجديدة كلياً:
+# 1) AI Memory & Profile: حفظ ذاكرة المستخدم والاسم والمستوى والأهداف وتكييف ردود AI بناءً عليها.
+# 2) Vocabulary Notebook: دفتر مفردات تفاعلي لتصنيف الكلمات وتتبع حالة حفظها (مراجعة/محفوظة).
+# 3) Real-time Evaluation: تقييم فورية لكل رسالة (Grammar, Vocab, Naturalness, Fluency) مع تصحيح مختصر.
+# 4) Voice-Only Call Mode: واجهة مخصصة لمحاكاة المكالمات الصوتية الحقيقية بسلاسة.
+# 5) Granular Settings: إعدادات دقيقة لصرامة التصحيح وأسلوب الحوار حسب رغبتك.
 # ==========================================
 
 import os
@@ -42,6 +48,13 @@ def init_db():
                     meaning_ar TEXT,
                     example TEXT,
                     status TEXT
+                )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS saved_sessions (
+                    id TEXT PRIMARY KEY,
+                    title TEXT,
+                    scenario TEXT,
+                    created_at TEXT,
+                    messages_json TEXT
                 )''')
     c.execute('''CREATE TABLE IF NOT EXISTS user_stats (
                     key TEXT PRIMARY KEY,
@@ -95,6 +108,7 @@ def get_stat(key: str) -> int:
     except Exception:
         return 0
 
+# مجلد صوتي مستقل لكل جلسة
 if "session_audio_dir" not in st.session_state:
     st.session_state.session_audio_dir = os.path.join(DB_DIR, uuid.uuid4().hex)
     os.makedirs(st.session_state.session_audio_dir, exist_ok=True)
@@ -113,6 +127,34 @@ SCENARIO_ICONS = {
     "Supermarket Customer (Work Practice)": "🛒",
     "Grammar & Translation Coach": "📘",
     "Speaking Placement Test (10+ Questions)": "📝",
+}
+
+# تعليمات كل سيناريو تُرسل للذكاء الاصطناعي ضمن الـ System Prompt
+# (كانت هذه القائمة مفقودة بالكامل من الكود الأصلي، وهذا كان سبب توقف التطبيق عن العمل)
+PROMPTS = {
+    "Casual Friend (Everyday Chat)": (
+        "Act as a warm, casual native English-speaking friend. Talk naturally about everyday "
+        "topics (hobbies, food, daily life, movies, weekend plans, etc.). Keep the tone relaxed "
+        "and friendly, ask natural follow-up questions, and let the conversation flow the way "
+        "real friends talk."
+    ),
+    "Supermarket Customer (Work Practice)": (
+        "Roleplay as a customer at a supermarket while the user practices being the cashier or "
+        "employee. Ask about prices, product locations, and availability, and make small talk "
+        "typical of a supermarket checkout interaction. Occasionally raise realistic situations "
+        "(a discount code, a missing item, asking for a bag) for the user to handle."
+    ),
+    "Grammar & Translation Coach": (
+        "Act as a supportive but precise grammar and Arabic-English translation coach. Help the "
+        "user translate sentences accurately, explain grammar rules clearly with examples, and "
+        "correct mistakes with a brief explanation of the rule behind each correction."
+    ),
+    "Speaking Placement Test (10+ Questions)": (
+        "Conduct a structured spoken English placement test. Ask at least 10-15 questions of "
+        "gradually increasing difficulty, covering different tenses and topics, to assess the "
+        "user's CEFR level. Keep questions short and clear, one at a time. After the test is "
+        "complete, give an estimated CEFR level (A1-C2) with a short justification."
+    ),
 }
 
 st.markdown(
@@ -173,10 +215,10 @@ st.markdown(
 )
 
 # ==========================================
-# 2. الشريط الجانبي
+# 2. الشريط الجانبي: الإعدادات والتحكم
 # ==========================================
 st.sidebar.markdown("### 🎙️ AI English Elite")
-st.sidebar.caption("منصة تدريب لغات متطورة")
+st.sidebar.caption("منصة تدريب لغات متطورة مع ذاكرة ذكية")
 
 st.sidebar.markdown('<div class="side-heading">🔑 API & Setup</div>', unsafe_allow_html=True)
 env_key = os.environ.get("GEMINI_API_KEY", "")
@@ -215,7 +257,7 @@ VOICE_MAP = {
 voice_id = VOICE_MAP[voice_label]
 
 autoplay_audio = st.sidebar.checkbox("🔊 Autoplay AI Voice", value=True)
-voice_only_mode = st.sidebar.checkbox("🎙️ وضع المكالمة الصوتية (Voice-Only Mode)", value=False)
+voice_only_mode = st.sidebar.checkbox("🎙️ وضع المكالمة الصوتية (Voice-Only Mode)", value=False, help="إخفاء لوحة المفاتيح والتركيز على التحدث والصوت المباشر")
 
 st.sidebar.markdown('<div class="side-heading">⚡ صرامة التصحيح</div>', unsafe_allow_html=True)
 strictness = st.sidebar.selectbox(
@@ -223,7 +265,7 @@ strictness = st.sidebar.selectbox(
     ["تصحيح جميع الأخطاء بدقة", "الأخطاء الكبيرة فقط (لتشجيع الطلاقة)", "بدون تصحيح (محادثة حرة تماماً)"],
 )
 
-with st.sidebar.expander("⚙️ إعدادات الموديل"):
+with st.sidebar.expander("⚙️ إعدادات متقدمة للموديل"):
     model_name = st.text_input("Gemini Model:", value=DEFAULT_MODEL)
 
 st.sidebar.markdown('<div class="side-heading">🧹 إدارة الجلسة</div>', unsafe_allow_html=True)
@@ -233,7 +275,7 @@ if st.sidebar.button("🔄 جلسة جديدة تماماً", use_container_widt
     st.rerun()
 
 # ==========================================
-# 3. مشغل الصوت
+# 3. محول الصوتيات (Edge TTS) ومشغل Waveform
 # ==========================================
 async def _synthesize(text: str, voice: str, out_path: str):
     communicate = edge_tts.Communicate(text, voice)
@@ -336,50 +378,57 @@ def render_typing_indicator(slot):
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 4. بناء التبويبات (Tabs)
+# 4. بناء تبويبات المنصة الاحترافية (Tabs)
 # ==========================================
 tab_chat, tab_vocab, tab_memory, tab_stats = st.tabs([
     "💬 غرفة المحادثة", 
-    "📓 دفتر المفردات", 
-    "🧠 ذاكرة AI والملف الشخصي", 
-    "📊 الإحصائيات"
+    "📓 دفتر المفردات (Vocab Notebook)", 
+    "🧠 ذاكرة الذكاء الاصطناعي والملف الشخصي", 
+    "📊 الإحصائيات الشاملة"
 ])
 
 # ------------------------------------------
-# تبويب 3: الذاكرة والملف الشخصي
+# تبويب 3: ذاكرة الذكاء الاصطناعي والملف الشخصي (AI Memory)
 # ------------------------------------------
 with tab_memory:
-    st.subheader("🧠 ذاكرة المستخدم والملف الشخصي")
-    st.caption("هذه المعلومات تُرسل تلقائياً للذكاء الاصطناعي لكي يتذكرك دائماً.")
+    st.subheader("🧠 ذاكرة المستخدم والملف الشخصي (AI Memory)")
+    st.caption("هذه المعلومات تُرسل تلقائياً للذكاء الاصطناعي لكي يتذكرك دائماً ويوجه الأسئلة بناءً عليها.")
 
     with st.form("profile_form"):
         p_name = st.text_input("اسمك الكريم:", value=get_profile("name", ""))
-        p_level = st.selectbox("مستواك في الإنجليزية:", ["A1 (مبتدئ)", "A2 (مبتدئ متقدم)", "B1 (متوسط)", "B2 (متوسط متقدم)", "C1 (متقدم)", "C2 (محترف)"], index=2)
-        p_goals = st.text_input("هدف التعلم (مثلاً: IELTS، عمل، محادثة):", value=get_profile("goals", ""))
-        p_notes = st.text_area("ملاحظات خاصة للـ AI:", value=get_profile("notes", ""))
+        level_options = ["A1 (مبتدئ)", "A2 (مبتدئ متقدم)", "B1 (متوسط)", "B2 (متوسط متقدم)", "C1 (متقدم)", "C2 (محترف)"]
+        saved_level = get_profile("level", "B1 (متوسط)")
+        p_level = st.selectbox(
+            "مستواك في الإنجليزية:",
+            level_options,
+            index=level_options.index(saved_level) if saved_level in level_options else 2,
+        )
+        p_goals = st.text_input("هدف التعلم (مثلاً: التحضير لـ IELTS، العمل في السوبرماركت، محادثة عامة):", value=get_profile("goals", ""))
+        p_notes = st.text_area("ملاحظات خاصة للـ AI (مثل: نقاط ضعف أقع بها دائماً، تصحيح دقيق...):", value=get_profile("notes", ""))
         
-        if st.form_submit_button("💾 حفظ الملف الشخصي"):
+        if st.form_submit_button("💾 حفظ الملف الشخصي وتحديث الذاكرة"):
             set_profile("name", p_name)
             set_profile("level", p_level)
             set_profile("goals", p_goals)
             set_profile("notes", p_notes)
-            st.success("✅ تم التحديث بنجاح!")
+            st.success("✅ تم تحديث ذاكرة الذكاء الاصطناعي بنجاح!")
 
 # ------------------------------------------
-# تبويب 2: دفتر المفردات (تم إصلاح خطأ الفورم هنا)
+# تبويب 2: دفتر المفردات (Vocabulary Notebook)
 # ------------------------------------------
 with tab_vocab:
-    st.subheader("📓 دفتر المفردات الذكي")
-    st.caption("احفظ الكلمات الجديدة، صنفها، وراجعها.")
+    st.subheader("📓 دفتر المفردات الذكي (Vocabulary Notebook)")
+    st.caption("احفظ الكلمات الجديدة، صنفها، وراجعها وقت ما تحب.")
 
-    with st.expander("➕ إضافة كلمة جديدة"):
+    # إضافة كلمة جديدة يدوياً
+    with st.expander("➕ إضافة كلمة جديدة لدفتر المفردات"):
         with st.form("add_vocab"):
             col1, col2 = st.columns(2)
-            new_word = col1.text_input("الكلمة / التعبير:")
+            new_word = col1.text_input("الكلمة / التعبير بالإنجليزي:")
             new_type = col2.selectbox("التصنيف:", ["Verb (فعل)", "Noun (اسم)", "Phrase (تعبير)", "Adjective (صفة)"])
             new_meaning = st.text_input("المعنى بالعربي:")
             new_example = st.text_input("مثال إنجليزي:")
-            if st.form_submit_button("حفظ الكلمة"):
+            if st.form_submit_button("حفظ الكلمة بالدفتر"):
                 if new_word:
                     try:
                         conn = sqlite3.connect(DB_PATH)
@@ -388,13 +437,14 @@ with tab_vocab:
                                   (new_word.strip(), new_type, new_meaning.strip(), new_example.strip(), "Needs Review"))
                         conn.commit()
                         conn.close()
-                        st.success(f"تم حفظ ({new_word}) بنجاح!")
+                        st.success(f"تم حفظ الكلمة ({new_word}) بنجاح!")
                         update_stat("total_anki", 1)
                     except Exception as e:
                         st.error(f"خطأ: {e}")
                 else:
-                    st.warning("يرجى كتابة الكلمة.")
+                    st.warning("يرجى كتابة الكلمة على الأقل.")
 
+    # عرض وجدولة الكلمات المحفوظة
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -403,16 +453,19 @@ with tab_vocab:
         conn.close()
 
         if vocab_rows:
-            search_q = st.text_input("🔍 ابحث:", "")
+            search_q = st.text_input("🔍 ابحث داخل دفتر المفردات:", "")
             filtered = [r for r in vocab_rows if search_q.lower() in r[1].lower() or search_q in r[3]]
-            st.markdown(f"**إجمالي الكلمات:** {len(vocab_rows)}")
+            
+            st.markdown(f"**إجمالي الكلمات المحفوظة:** {len(vocab_rows)}")
             for row in filtered:
                 r_id, r_word, r_type, r_meaning, r_example, r_status = row
                 cols = st.columns([3, 2, 2, 1])
                 cols[0].markdown(f"**{r_word}** ({r_type})<br><span style='color:#94a3b8;font-size:0.85rem;'>{r_meaning}</span>", unsafe_allow_html=True)
                 cols[1].markdown(f"<span style='color:#cbd5e1;font-size:0.85rem;'>Ex: {r_example}</span>", unsafe_allow_html=True)
+                
                 status_color = "#34d399" if r_status == "Learned" else "#f87171"
                 cols[2].markdown(f"<span style='color:{status_color};font-weight:700;'>{r_status}</span>", unsafe_allow_html=True)
+                
                 if cols[3].button("🔄 تبديل", key=f"toggle_v_{r_id}"):
                     new_st = "Learned" if r_status == "Needs Review" else "Needs Review"
                     conn = sqlite3.connect(DB_PATH)
@@ -422,27 +475,30 @@ with tab_vocab:
                     conn.close()
                     st.rerun()
         else:
-            st.info("دفتر المفردات فارغ.")
+            st.info("دفتر المفردات فارغ حالياً. أضف كلمات يدوياً أو استخرجها من جلسات المحادثة.")
     except Exception:
         pass
 
 # ------------------------------------------
-# تبويب 4: الإحصائيات
+# تبويب 4: الإحصائيات الشاملة
 # ------------------------------------------
 with tab_stats:
-    st.subheader("📊 لوحة إحصائيات التعلم")
+    st.subheader("📊 لوحة إحصائيات التعلم الأداء")
     c1, c2, c3 = st.columns(3)
     c1.metric("💬 إجمالي الرسائل", get_stat("total_messages"))
-    c2.metric("📇 بطاقات Anki", get_stat("total_anki"))
+    c2.metric("📇 بطاقات ومفردات Anki", get_stat("total_anki"))
     c3.metric("📚 كلمات متفاعل معها", get_stat("total_words"))
+    st.markdown("---")
+    st.info("💡 الاستمرارية هي سر إتقان اللغة الإنجليزية. استمر في التدرب يومياً!")
 
 # ------------------------------------------
-# تبويب 1: غرفة المحادثة الذكية
+# تبويب 1: غرفة المحادثة الذكية (Main Chat Room)
 # ------------------------------------------
 with tab_chat:
+    # جمع معلومات الذاكرة لدمجها مع System Prompt
     mem_name = get_profile("name", "الطالب")
     mem_level = get_profile("level", "B1")
-    mem_goals = get_profile("goals", "محادثة عامة")
+    mem_goals = get_profile("goals", "محادثة عامة وتحسين الطلاقة")
     mem_notes = get_profile("notes", "")
 
     SYSTEM_PROMPT = f"""
@@ -451,48 +507,50 @@ with tab_chat:
     - Name: {mem_name}
     - CEFR Level: {mem_level}
     - Goals: {mem_goals}
-    - Notes: {mem_notes}
+    - Notes/Weaknesses: {mem_notes}
     - Correction Strictness: {strictness}
 
     Scenario Instruction: {PROMPTS.get(scenario, PROMPTS['Casual Friend (Everyday Chat)'])}
     
     IMPORTANT RULES:
-    1. Tailor language difficulty to level ({mem_level}).
-    2. At the end of every response, you MUST provide a short evaluation block in this exact format:
+    1. Tailor your language difficulty to the user's level ({mem_level}).
+    2. Respect the correction strictness: {strictness}.
+    3. At the end of every response, you MUST provide a short evaluation block for the user's previous message in this exact format:
        [EVAL|Grammar:X/10|Vocab:X/10|Natural:X/10|Fluency:X/10|Correction: short polite tip if any]
     """
 
     if not api_key:
-        st.warning("👈 يرجى إدخال مفتاح Gemini API Key في الشريط الجانبي.")
+        st.warning("👈 يرجى إدخال مفتاح Gemini API Key في الشريط الجانبي للبدء.")
         st.stop()
 
     try:
         client = genai.Client(api_key=api_key)
-        if "chat_session" not in st.session_state or st.session_state.get("current_scenario") != scenario or st.session_state.get("current_model") != model_name:
+        config_signature = (scenario, model_name, strictness, mem_name, mem_level, mem_goals, mem_notes)
+        if "chat_session" not in st.session_state or st.session_state.get("current_config") != config_signature:
             st.session_state.chat_session = client.chats.create(
                 model=model_name,
                 config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, temperature=0.7),
             )
-            st.session_state.current_scenario = scenario
-            st.session_state.current_model = model_name
+            st.session_state.current_config = config_signature
             st.session_state.messages = []
             st.session_state.test_question_count = 0
 
             if scenario == "Speaking Placement Test (10+ Questions)":
-                welcome_msg = f"Welcome {mem_name} to the English Speaking Placement Test. Let's begin! Question 1: Could you introduce yourself?"
+                welcome_msg = f"Welcome {mem_name} to the English Speaking Placement Test. Let's begin! Question 1: Could you introduce yourself and tell me a bit about your daily routine?"
                 st.session_state.messages.append({"role": "assistant", "content": welcome_msg, "audio": speak(welcome_msg, voice_id)})
                 update_stat("total_messages", 1)
     except Exception as e:
-        st.error(f"⚠️ خطأ بالاتصال: `{e}`")
+        st.error(f"⚠️ خطأ في الاتصال بالخادم: `{e}`")
         st.stop()
 
+    # رأس الصفحة الترحيبي داخل غرفة المحادثة
     st.markdown(f"""
         <div class="hero-card">
             <div class="hero-title">🎙️ أهلاً بك يا {mem_name or 'صديقي'}!</div>
             <div class="hero-sub">المستوى: {mem_level} | الهدف: {mem_goals}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <span class="badge">{SCENARIO_ICONS.get(scenario, '💬')} {scenario}</span>
-                <span class="badge" style="background:rgba(167,139,250,0.12); color:#a78bfa;">🔊 {voice_label}</span>
+                <span class="badge" style="background:rgba(167,139,250,0.12); color:#a78bfa; border-color:rgba(167,139,250,0.3);">🔊 {voice_label}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -502,6 +560,7 @@ with tab_chat:
         pct = min(answered / 10, 1.0)
         st.progress(pct, text=f"📝 تم الإجابة على {answered} سؤال من أصل 10-15")
 
+    # معالجة الرسائل
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "audio_input_key" not in st.session_state:
@@ -530,6 +589,7 @@ with tab_chat:
                 return
             typing_slot.empty()
 
+            # فصل التقييم عن نص الرد الأساسي
             eval_data = None
             display_reply = full_reply
             eval_match = re.search(r"\[EVAL\|(.*?)]", full_reply)
@@ -552,7 +612,7 @@ with tab_chat:
                             <span>Natural: {eval_data.get('Natural','-')}</span>
                             <span>Fluency: {eval_data.get('Fluency','-')}</span>
                         </div>
-                        <div><b>التصحيح:</b> {eval_data.get('Correction','ممتاز!')}</div>
+                        <div><b>التصحيح والملحوظة:</b> {eval_data.get('Correction','ممتاز!')}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -567,17 +627,21 @@ with tab_chat:
                 pass
 
         st.session_state.messages.append({
-            "role": "assistant", "content": display_reply, "audio": audio_path, "eval": eval_data
+            "role": "assistant", 
+            "content": display_reply, 
+            "audio": audio_path, 
+            "eval": eval_data
         })
         update_stat("total_messages", 1)
         update_stat("total_words", len(display_reply.split()))
 
+    # عرض الرسائل السابقة
     messages = st.session_state.messages
     if not messages:
         st.markdown("""
             <div style="text-align:center; padding:30px; border:1px dashed rgba(148,163,184,0.25); border-radius:16px; color:#94a3b8; margin-bottom:12px;">
                 <div style="font-size:2rem; margin-bottom:8px;">🎙️</div>
-                <b>ابدأ مكالمتك أو محادثتك الآن!</b>
+                <b>ابدأ مكالمتك أو محادثتك الآن!</b><br/>تحدث بصوتك أو اكتب بالأسفل.
             </div>
         """, unsafe_allow_html=True)
 
@@ -595,7 +659,7 @@ with tab_chat:
                             <span>Natural: {ev.get('Natural','-')}</span>
                             <span>Fluency: {ev.get('Fluency','-')}</span>
                         </div>
-                        <div><b>التصحيح:</b> {ev.get('Correction','ممتاز!')}</div>
+                        <div><b>التصحيح والملحوظة:</b> {ev.get('Correction','ممتاز!')}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -608,13 +672,16 @@ with tab_chat:
                 if is_fresh:
                     st.session_state.last_played_audio = audio_path
 
-            if st.button("🗑️ حذف", key=f"del_{i}"):
+            # أزرار الحذف والتعديل السريع
+            c_del, c_edt, _ = st.columns([1, 1, 6])
+            if c_del.button("🗑️ حذف", key=f"del_{i}"):
                 st.session_state.messages.pop(i)
                 st.rerun()
 
+    # قسم الإدخال (صوت أو نص)
     st.markdown("---")
     if voice_only_mode:
-        st.info("🎙️ وضع المكالمة الصوتية مفعل.")
+        st.info("🎙️ **وضع المكالمة الصوتية مفعل**: تحدث مباشرة عبر المايك واستمع لرد الذكاء الاصطناعي تلقائياً.")
 
     audio_value = st.audio_input("🎤 سجل صوتك هنا", key=f"audio_recorder_{st.session_state.audio_input_key}")
 
@@ -623,16 +690,16 @@ with tab_chat:
         audio_id = hashlib.sha256(audio_bytes).hexdigest()
         if st.session_state.get("last_audio_id") != audio_id:
             st.session_state.last_audio_id = audio_id
-            with st.spinner("🎧 جاري معالجة الصوت..."):
+            with st.spinner("🎧 جاري الاستماع وتحليل الصوت..."):
                 try:
                     transcript = client.models.generate_content(
                         model=model_name,
-                        contents=[types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"), "Transcribe exactly what is said."],
+                        contents=[types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"), "Transcribe exactly what is said in this audio. Output ONLY the transcription."],
                     )
                     spoken_text = transcript.text.strip()
                 except Exception as e:
                     spoken_text = None
-                    st.error(f"⚠️ خطأ: {e}")
+                    st.error(f"⚠️ خطأ بالتعرف على الصوت: {e}")
             if spoken_text:
                 handle_user_message(spoken_text)
             st.session_state.audio_input_key += 1
@@ -644,13 +711,14 @@ with tab_chat:
             handle_user_message(typed)
             st.rerun()
 
+    # استخراج Anki التلقائي من المحادثة
     st.divider()
-    if st.button("📇 تصدير مفردات هذه الجلسة لدفتر المفردات و Anki", use_container_width=True):
+    if st.button("📇 تصدير مفردات هذه الجلسة إلى دفتر المفردات و Anki", use_container_width=True):
         user_turns = [m for m in st.session_state.messages if m["role"] == "user"]
         if not user_turns:
             st.warning("ابدأ المحادثة أولاً!")
         else:
-            with st.spinner("✨ جاري الاستخراج..."):
+            with st.spinner("✨ جاري استخراج الكلمات الجديدة وإضافتها لدفتر المفردات..."):
                 conversation_text = "\n".join(f"{m['role']}: {m['content']}" for m in st.session_state.messages)
                 anki_prompt = f"""Analyze this conversation. Extract 5 useful words or phrases.
 Output ONLY plain tab-separated lines in this exact format:
@@ -664,13 +732,16 @@ Conversation:
                     )
                     anki_text = anki_result.text.strip()
                     
+                    # حفظ بالدفتر أيضاً تلقائياً
                     conn = sqlite3.connect(DB_PATH)
                     c = conn.cursor()
                     for line in anki_text.splitlines():
                         if "\t" in line:
                             parts = line.split("\t", 1)
+                            w = parts[0].strip()
+                            m = parts[1].strip()
                             c.execute("INSERT OR IGNORE INTO vocab_notebook (word, word_type, meaning_ar, example, status) VALUES (?, ?, ?, ?, ?)",
-                                      (parts[0].strip(), "Phrase", parts[1].strip(), "", "Needs Review"))
+                                      (w, "Phrase", m, "", "Needs Review"))
                     conn.commit()
                     conn.close()
 
