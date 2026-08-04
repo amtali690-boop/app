@@ -106,7 +106,7 @@ AUDIO_DIR = st.session_state.session_audio_dir
 # ==========================================
 st.set_page_config(page_title="AI English Elite Platform", page_icon="🎙️", layout="wide")
 
-DEFAULT_MODEL = "gemini-2.5-flash" # // تم التعديل: استخدام الموديل الأحدث والأكثر استقراراً
+DEFAULT_MODEL = "gemini-3.6-flash" # // تم التعديل: gemini-2.5-flash لم يعد متاحاً للمستخدمين الجدد (404)؛ هذا هو الموديل المستقر الحالي (يدعم الصوت أيضاً لخاصية تفريغ التسجيلات)
 
 SCENARIO_ICONS = {
     "Casual Friend (Everyday Chat)": "☕",
