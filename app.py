@@ -21,6 +21,9 @@ import edge_tts
 from google import genai
 from google.genai import types
 
+# استيراد ملف التنسيقات الخارجي
+from styles import inject_css
+
 # ==========================================
 # 0. إعداد قاعدة البيانات المحلية (SQLite)
 # ==========================================
@@ -106,6 +109,9 @@ AUDIO_DIR = st.session_state.session_audio_dir
 # ==========================================
 st.set_page_config(page_title="AI English Elite Platform", page_icon="🎙️", layout="wide")
 
+# تفعيل ملف الـ CSS الخارجي
+inject_css()
+
 DEFAULT_MODEL = "gemini-3.6-flash" # // تم التعديل: gemini-2.5-flash لم يعد متاحاً للمستخدمين الجدد (404)؛ هذا هو الموديل المستقر الحالي (يدعم الصوت أيضاً لخاصية تفريغ التسجيلات)
 
 SCENARIO_ICONS = {
@@ -115,8 +121,6 @@ SCENARIO_ICONS = {
     "Speaking Placement Test (10+ Questions)": "📝",
 }
 
-# // FIX: كانت هذه القائمة مستخدمة في SYSTEM_PROMPT لكنها غير معرّفة إطلاقاً في الكود الأصلي،
-# // مما كان يسبب انهيار التطبيق فور إدخال مفتاح API صحيح (NameError: name 'PROMPTS' is not defined).
 PROMPTS = {
     "Casual Friend (Everyday Chat)": (
         "Act like a warm, casual friend having an everyday conversation. Talk about daily life, "
@@ -142,131 +146,6 @@ PROMPTS = {
     ),
 }
 
-st.markdown(
-    """
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
-
-        html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
-        [data-testid="stMarkdownContainer"], .stChatMessage, .stButton>button,
-        .stTextInput input, .stTextArea textarea, .stSelectbox, [data-testid="stMetricValue"] {
-            font-family: 'Tajawal', sans-serif !important;
-        }
-
-        .stApp {
-            background: radial-gradient(circle at top left, #0f172a 0%, #090d16 55%, #030712 100%);
-        }
-
-        /* بطاقة الترحيب */
-        .hero-card {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 60%, #090d16 100%);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            border-radius: 18px; padding: 20px 26px; margin-bottom: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-        }
-        .hero-title { font-size: 1.7rem; font-weight: 800; color: #f8fafc; margin-bottom: 4px; }
-        .hero-sub { color: #94a3b8; font-size: 0.92rem; margin-bottom: 12px; }
-        .badge {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
-            background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);
-            transition: transform 0.15s ease;
-        }
-        .badge:hover { transform: translateY(-1px); }
-
-        .eval-card {
-            background: rgba(15, 23, 42, 0.7);
-            border: 1px solid rgba(167, 139, 250, 0.25);
-            border-radius: 12px; padding: 10px 14px; margin-bottom: 8px;
-            font-size: 0.82rem; color: #cbd5e1;
-        }
-        .eval-scores { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; font-weight: 700; color: #38bdf8; }
-
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #090d16 0%, #030712 100%);
-            border-right: 1px solid rgba(148,163,184,0.1);
-        }
-        .side-heading {
-            font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
-            color: #64748b; font-weight: 700; margin: 16px 0 6px 0;
-        }
-
-        /* أزرار أنعم مع حركة بسيطة عند التمرير، بدل التغيّر المفاجئ */
-        .stButton>button, .stDownloadButton>button {
-            border-radius: 10px; font-weight: 700;
-            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-        }
-        .stButton>button:hover, .stDownloadButton>button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(56, 189, 248, 0.18);
-            border-color: rgba(56, 189, 248, 0.5);
-        }
-        .stButton>button:active, .stDownloadButton>button:active { transform: translateY(0); }
-
-        /* التابات العلوية */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 6px; border-bottom: 1px solid rgba(148,163,184,0.12);
-        }
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 10px 10px 0 0; padding: 8px 16px; font-weight: 700;
-            transition: background 0.15s ease;
-        }
-        .stTabs [aria-selected="true"] {
-            background: rgba(56, 189, 248, 0.1); color: #38bdf8 !important;
-        }
-
-        /* فقاعات الشات */
-        [data-testid="stChatMessage"] {
-            border-radius: 16px; padding: 6px 4px;
-            border: 1px solid rgba(148,163,184,0.08);
-            background: rgba(255,255,255,0.02);
-            margin-bottom: 6px;
-            transition: background 0.15s ease;
-        }
-        [data-testid="stChatMessage"]:hover { background: rgba(255,255,255,0.035); }
-
-        /* حقل الكتابة السفلي */
-        [data-testid="stChatInput"] {
-            border-radius: 14px; border: 1px solid rgba(56, 189, 248, 0.25) !important;
-        }
-
-        /* الحاويات ذات الحدود (تستخدم لبطاقات المفردات) */
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            border-radius: 14px !important;
-            transition: border-color 0.15s ease;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"]:hover {
-            border-color: rgba(56, 189, 248, 0.35) !important;
-        }
-
-        /* شريط تمرير أنيق */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 8px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
-
-        .typing-card {
-            display: inline-flex; align-items: center; gap: 10px;
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(148,163,184,0.12);
-            border-radius: 14px; padding: 10px 16px; color: #94a3b8; font-size: 0.88rem; font-weight: 600;
-        }
-        .typing-dots { display: inline-flex; gap: 4px; }
-        .typing-dots span {
-            width: 6px; height: 6px; border-radius: 50%;
-            background: linear-gradient(135deg, #38bdf8, #a78bfa);
-            animation: typing-bounce 1.2s infinite ease-in-out;
-        }
-        .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-        @keyframes typing-bounce {
-            0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-            30% { transform: translateY(-5px); opacity: 1; }
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 # ==========================================
 # 2. الشريط الجانبي
 # ==========================================
@@ -275,7 +154,6 @@ st.sidebar.caption("منصة تدريب لغات متطورة")
 
 st.sidebar.markdown('<div class="side-heading">🔑 API & Setup</div>', unsafe_allow_html=True)
 
-# // تم التعديل: إصلاح جذري لحقل المفتاح ليبقى ظاهراً ويعمل ببساطة
 api_key = st.sidebar.text_input("Gemini API Key:", value=os.environ.get("GEMINI_API_KEY", ""), type="password")
 
 if not api_key:
@@ -319,9 +197,6 @@ with st.sidebar.expander("⚙️ إعدادات الموديل"):
 
 st.sidebar.markdown('<div class="side-heading">🧹 إدارة الجلسة</div>', unsafe_allow_html=True)
 if st.sidebar.button("🔄 جلسة جديدة تماماً", use_container_width=True):
-    # // إضافة: حذف ملفات الصوت (mp3) المتراكمة على القرص من الجلسة الحالية.
-    # // كانت كل رسالة صوتية تُنشئ ملفاً جديداً بدون حذف القديم، فيتراكم عدد كبير
-    # // من الملفات على القرص مع طول الجلسة دون أي تنظيف.
     try:
         for f in os.listdir(AUDIO_DIR):
             fp = os.path.join(AUDIO_DIR, f)
@@ -330,7 +205,6 @@ if st.sidebar.button("🔄 جلسة جديدة تماماً", use_container_widt
     except Exception:
         pass
     for k in list(st.session_state.keys()):
-        # استثناء الملفات الهامة لكي لا يتعطل النظام عند التحديث
         if k not in ["session_audio_dir", "audio_input_key"]:
             del st.session_state[k]
     st.rerun()
@@ -339,14 +213,11 @@ if st.sidebar.button("🔄 جلسة جديدة تماماً", use_container_widt
 # 3. مشغل الصوت
 # ==========================================
 def speak(text: str, voice: str) -> str:
-    # // تم التعديل: استخدام Event Loop محلي لحل مشكلة تعليق الصوت بشكل جذري دون تجميد الواجهة
     if not text or not text.strip():
         return None
     out_path = os.path.join(AUDIO_DIR, f"tts_{uuid.uuid4().hex}.mp3")
-    clean_text = re.sub(r'[*_#`]', '', text) # تنظيف النص من الرموز المزعجة
+    clean_text = re.sub(r'[*_#`]', '', text)
 
-    # // FIX: كان الكود الأصلي لا يغلق الـ event loop إذا حدث استثناء أثناء communicate.save()،
-    # // مما يسبب تسرّب موارد (loop leak) مع كل رسالة يفشل توليد صوتها.
     loop = None
     try:
         loop = asyncio.new_event_loop()
@@ -474,8 +345,6 @@ with tab_memory:
 
     with st.form("profile_form"):
         p_name = st.text_input("اسمك الكريم:", value=get_profile("name", ""))
-        # // FIX: كان index مثبتاً دائماً على 2 (B1) بغض النظر عن المستوى المحفوظ فعلياً،
-        # // فكانت القائمة ترجع لـ B1 في كل مرة حتى لو المستخدم اختار وحفظ مستوى آخر من قبل.
         LEVEL_OPTIONS = ["A1 (مبتدئ)", "A2 (مبتدئ متقدم)", "B1 (متوسط)", "B2 (متوسط متقدم)", "C1 (متقدم)", "C2 (محترف)"]
         saved_level = get_profile("level", "B1 (متوسط)")
         default_level_index = LEVEL_OPTIONS.index(saved_level) if saved_level in LEVEL_OPTIONS else 2
@@ -513,7 +382,7 @@ with tab_vocab:
                                       (new_word.strip(), new_type, new_meaning.strip(), new_example.strip(), "Needs Review"))
                             conn.commit()
                         st.success(f"تم حفظ ({new_word}) بنجاح!")
-                        update_stat("total_vocab_words", 1) # // تم التعديل: تغيير اسم الإحصائية لإزالة Anki
+                        update_stat("total_vocab_words", 1) 
                     except Exception as e:
                         st.error(f"خطأ: {e}")
                 else:
@@ -527,14 +396,11 @@ with tab_vocab:
 
         if vocab_rows:
             search_q = st.text_input("🔍 ابحث:", "")
-            # // FIX: البحث كان يقارن search_q بدون lower() مع r[3] (المثال) بينما يقارن مع الكلمة بعد lower()،
-            # // مما يجعل نتائج البحث غير متسقة حسب حالة الأحرف.
             search_q_lower = search_q.lower()
             filtered = [r for r in vocab_rows if search_q_lower in r[1].lower() or search_q_lower in r[3].lower()]
             st.markdown(f"**إجمالي الكلمات:** {len(vocab_rows)}")
             for row in filtered:
                 r_id, r_word, r_type, r_meaning, r_example, r_status = row
-                # // تحسين شكلي: كل كلمة بقت داخل بطاقة بحدود واضحة بدل صف عادي بلا فاصل بصري بينها وبين اللي بعدها
                 with st.container(border=True):
                     cols = st.columns([3, 2, 2, 1, 1])
                     cols[0].markdown(f"**{r_word}** ({r_type})<br><span style='color:#94a3b8;font-size:0.85rem;'>{r_meaning}</span>", unsafe_allow_html=True)
@@ -548,7 +414,6 @@ with tab_vocab:
                             cu.execute("UPDATE vocab_notebook SET status = ? WHERE id = ?", (new_st, r_id))
                             update_conn.commit()
                         st.rerun()
-                    # // إضافة: زر حذف الكلمة نهائياً من الدفتر (لم يكن متاحاً سابقاً، فقط تبديل الحالة)
                     if cols[4].button("🗑️", key=f"delete_v_{r_id}"):
                         with sqlite3.connect(DB_PATH, timeout=10) as del_conn:
                             cd = del_conn.cursor()
@@ -567,7 +432,6 @@ with tab_stats:
     st.subheader("📊 لوحة إحصائيات التعلم")
     c1, c2, c3 = st.columns(3)
     c1.metric("💬 إجمالي الرسائل", get_stat("total_messages"))
-    # // تم التعديل: إزالة Anki من الإحصائيات واستبدالها بالكلمات المحفوظة
     c2.metric("📓 مفردات بالدفتر", get_stat("total_vocab_words")) 
     c3.metric("📚 كلمات متفاعل معها", get_stat("total_words"))
 
@@ -600,7 +464,6 @@ with tab_chat:
            [EVAL|Grammar:X/10|Vocab:X/10|Natural:X/10|Fluency:X/10|Correction: short polite tip if any]
         """
 
-        # // تم التعديل: دالة مزامنة الذاكرة لمنع خطأ 400 Bad Request عند الحذف
         def sync_gemini_history(client_instance, messages_list):
             try:
                 history_parts = []
@@ -620,8 +483,6 @@ with tab_chat:
             except Exception as e:
                 st.error(f"Error Syncing: {e}")
 
-        # // FIX: تعريف client مسبقاً بـ None حتى لو فشل إنشاء الاتصال، فلا تنهار الأزرار
-        # // اللي بتستخدمه لاحقاً (زر الحذف، تفريغ الصوت) بخطأ NameError غير مفهوم.
         client = None
         try:
             client = genai.Client(api_key=api_key)
@@ -663,7 +524,6 @@ with tab_chat:
         if "audio_input_key" not in st.session_state:
             st.session_state.audio_input_key = 0
 
-        # // تم التعديل: إخراج معالجة المدخلات من داخل الدوال لمنع أي انهيار للواجهة
         messages = st.session_state.messages
         if not messages:
             st.markdown("""
@@ -701,8 +561,6 @@ with tab_chat:
                         st.session_state.last_played_audio = audio_path
 
                 if st.button("🗑️ حذف", key=f"del_{i}"):
-                    # // إضافة: حذف ملف الصوت المرتبط بالرسالة من القرص أيضاً، وليس فقط من الذاكرة،
-                    # // لتجنب تراكم ملفات mp3 يتيمة لا يشير إليها أي شيء بعد حذف الرسالة.
                     deleted_audio = st.session_state.messages[i].get("audio")
                     st.session_state.messages.pop(i)
                     if deleted_audio and os.path.exists(deleted_audio):
@@ -749,7 +607,6 @@ with tab_chat:
         elif typed_text:
             user_text = typed_text
 
-        # // تم التعديل: المعالجة المركزية للإدخال لضمان عدم تعليق الواجهة
         if user_text:
             st.session_state.messages.append({"role": "user", "content": user_text})
             update_stat("total_messages", 1)
@@ -804,8 +661,6 @@ with tab_chat:
 
                 audio_path = None
                 try:
-                    # // تحسين شكلي: إضافة مؤشر تحميل صغير أثناء توليد الصوت، بدل ما تظهر فجوة صامتة
-                    # // بعد ظهور النص تحس المستخدم إن التطبيق متجمد للحظات.
                     with st.spinner("🔊 جاري توليد الصوت..."):
                         audio_path = speak(display_reply, voice_id)
                     render_voice_player(audio_path, autoplay_audio)
@@ -822,5 +677,3 @@ with tab_chat:
             if is_audio_input:
                 st.session_state.audio_input_key += 1
                 st.rerun()
-
-        # // تم التعديل: تم إزالة زر و وظيفة التصدير لـ Anki بالكامل.
