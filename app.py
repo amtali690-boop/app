@@ -1,12 +1,12 @@
 # ==========================================
-# AI English Conversation Partner — v12 (Deep UI Forcing & Bug Fixes)
+# AI English Conversation Partner — v13 (Ultimate Stable & UI Enforced)
 # الميزات:
 # 1) AI Memory & Profile
 # 2) Vocabulary Notebook
 # 3) Real-time Evaluation
 # 4) Voice-Only Call Mode
 # 5) Granular Settings
-# تم إجبار Streamlit على قبول التنسيقات العصرية وتحسين متانة الأكواد.
+# تم الإصلاح الشامل لمشاكل دورة حياة Streamlit، وتصحيح انهيار ذاكرة Gemini، وفرض تنسيق الواجهة.
 # ==========================================
 
 import os
@@ -35,9 +35,10 @@ DB_DIR = os.path.join(tempfile.gettempdir(), "ai_english_elite")
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "elite_partner.db")
 
+# تم التعديل: إضافة timeout=10 لمنع خطأ Database is locked عند العمل على مسارات Streamlit المتعددة
 def init_db():
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute('''CREATE TABLE IF NOT EXISTS user_profile (
                             key TEXT PRIMARY KEY,
@@ -70,7 +71,7 @@ init_db()
 
 def set_profile(key: str, val: str):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute("INSERT OR REPLACE INTO user_profile (key, value) VALUES (?, ?)", (key, val))
             conn.commit()
@@ -79,7 +80,7 @@ def set_profile(key: str, val: str):
 
 def get_profile(key: str, default: str = "") -> str:
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute("SELECT value FROM user_profile WHERE key = ?", (key,))
             row = c.fetchone()
@@ -90,7 +91,7 @@ def get_profile(key: str, default: str = "") -> str:
 
 def update_stat(key: str, amount: int = 1):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute("INSERT OR IGNORE INTO user_stats (key, value) VALUES (?, 0)", (key,))
             c.execute("UPDATE user_stats SET value = value + ? WHERE key = ?", (amount, key))
@@ -100,7 +101,7 @@ def update_stat(key: str, amount: int = 1):
 
 def get_stat(key: str) -> int:
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute("SELECT value FROM user_stats WHERE key = ?", (key,))
             row = c.fetchone()
@@ -155,114 +156,107 @@ PROMPTS = {
     ),
 }
 
-# تم التعديل: استهداف عناصر Streamlit الأصلية بقوة (Force Override) لضمان تغيير الواجهة جذرياً مع إخفاء العناصر غير المرغوبة.
+# تم التعديل: فرض التنسيقات باستخدام data-testid واستهداف الجذور لإجبار Streamlit على التغيير البصري.
 st.markdown(
     """
     <style>
-        /* إخفاء القوائم العلوية والسفلية الافتراضية لستريم ليت */
+        /* إخفاء الزوائد الافتراضية لستريم ليت لتنظيف الواجهة */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         header {visibility: hidden;}
         
-        /* تحسين شكل حاوية التطبيق بالكامل */
-        .stApp {
-            background-color: var(--background-color);
+        /* فرض ألوان وتنسيقات لحاويات المحادثة (الفقاعات) */
+        div[data-testid="stChatMessage"] {
+            background-color: var(--secondary-background-color) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+            margin-bottom: 1rem !important;
+            border: 1px solid rgba(14, 165, 233, 0.2) !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02) !important;
         }
-        
-        /* إجبار الأزرار على أخذ شكل عصري متفاعل */
+
+        /* فرض تأثيرات حركية على جميع الأزرار */
         div[data-testid="stButton"] > button {
-            border-radius: 8px !important;
+            border-radius: 10px !important;
             transition: all 0.3s ease !important;
-            border: 1px solid rgba(14, 165, 233, 0.3) !important;
-            background-color: transparent !important;
+            border: 1px solid rgba(14, 165, 233, 0.4) !important;
         }
         div[data-testid="stButton"] > button:hover {
             transform: translateY(-2px) !important;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15) !important;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2) !important;
             border-color: #0ea5e9 !important;
-            color: #0ea5e9 !important;
-        }
-
-        /* تحسين فقاعات المحادثة (Chat Messages) لتكون أجمل ومميزة */
-        div[data-testid="stChatMessage"] {
-            background-color: rgba(128, 128, 128, 0.03) !important;
-            border-radius: 12px !important;
-            padding: 15px 20px !important;
-            margin-bottom: 12px !important;
-            border: 1px solid rgba(128, 128, 128, 0.1) !important;
         }
         
-        /* تحسين حقول الإدخال */
-        div[data-baseweb="input"], div[data-baseweb="textarea"] {
-            border-radius: 8px !important;
+        /* تجميل حقول الإدخال */
+        div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div {
+            border-radius: 10px !important;
         }
         
         /* البطاقة الترحيبية */
         .hero-card {
-            background: linear-gradient(145deg, rgba(14, 165, 233, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
-            border-left: 5px solid #0ea5e9;
-            border-radius: 12px; 
+            background: linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(139,92,246,0.08) 100%);
+            border-left: 6px solid #0ea5e9;
+            border-radius: 14px; 
             padding: 24px; 
             margin-bottom: 24px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         }
-        .hero-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
+        .hero-title { font-size: 1.7rem; font-weight: 800; margin-bottom: 8px; }
         .hero-sub { font-size: 1rem; opacity: 0.8; margin-bottom: 16px; }
         
         /* البادجات (العلامات) */
         .badge {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
-            background-color: rgba(14, 165, 233, 0.1); 
+            padding: 6px 14px; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
+            background-color: rgba(14, 165, 233, 0.15); 
             color: #0ea5e9; 
-            border: 1px solid rgba(14, 165, 233, 0.2);
+            border: 1px solid rgba(14, 165, 233, 0.3);
         }
         
         /* بطاقة التقييم */
         .eval-card {
-            background-color: rgba(128, 128, 128, 0.02);
-            border: 1px solid rgba(128, 128, 128, 0.15);
-            border-radius: 10px; 
+            background-color: rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(128, 128, 128, 0.2);
+            border-radius: 12px; 
             padding: 16px; 
-            margin-top: 8px;
-            margin-bottom: 12px;
+            margin-top: 10px;
+            margin-bottom: 14px;
             font-size: 0.95rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
         .eval-scores { 
             display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; 
         }
         .eval-score-item {
-            background-color: rgba(14, 165, 233, 0.08);
+            background-color: rgba(14, 165, 233, 0.1);
             color: #0ea5e9;
             padding: 6px 12px;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 0.85rem;
             font-weight: 700;
-            border: 1px solid rgba(14, 165, 233, 0.15);
+            border: 1px solid rgba(14, 165, 233, 0.2);
         }
         
         /* العناوين الجانبية */
         .side-heading {
-            font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
-            opacity: 0.6; margin: 24px 0 8px 0;
-            border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-            padding-bottom: 4px;
+            font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+            opacity: 0.7; margin: 24px 0 10px 0;
+            border-bottom: 2px solid rgba(128, 128, 128, 0.1);
+            padding-bottom: 6px;
         }
         
         /* صفوف المفردات */
         .vocab-row {
-            background-color: rgba(128, 128, 128, 0.02);
-            border: 1px solid rgba(128, 128, 128, 0.1);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
+            background-color: var(--secondary-background-color);
+            border: 1px solid rgba(128, 128, 128, 0.15);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 14px;
             transition: all 0.3s ease;
         }
         .vocab-row:hover {
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
-            border-color: rgba(14, 165, 233, 0.3);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            transform: translateY(-3px);
+            border-color: rgba(14, 165, 233, 0.4);
         }
     </style>
     """,
@@ -331,30 +325,19 @@ if st.sidebar.button("🔄 بدء جلسة جديدة", use_container_width=True
 # ==========================================
 # 3. محول الصوتيات (Edge TTS) ومشغل Waveform
 # ==========================================
-async def _synthesize(text: str, voice: str, out_path: str):
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(out_path)
-
+# تم التعديل: عزل تام لمنطق الـ Asyncio داخل خيط (Thread) منفصل لضمان عدم تعليق الواجهة أبداً تحت أي ظرف.
 def speak(text: str, voice: str) -> str:
     out_path = os.path.join(AUDIO_DIR, f"tts_{int(time.time() * 1000)}.mp3")
-    # تم التعديل: تحسين فحص جودة خيوط المعالجة (Threads) لمنع أي أخطاء متعلقة بـ asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        def run_in_thread():
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            new_loop.run_until_complete(_synthesize(text, voice, out_path))
-            new_loop.close()
-        thread = threading.Thread(target=run_in_thread)
-        thread.start()
-        thread.join()
-    else:
-        asyncio.run(_synthesize(text, voice, out_path))
-        
+    def run_async():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        communicate = edge_tts.Communicate(text, voice)
+        loop.run_until_complete(communicate.save(out_path))
+        loop.close()
+    
+    t = threading.Thread(target=run_async)
+    t.start()
+    t.join()
     return out_path
 
 _VOICE_PLAYER_TEMPLATE = Template("""
@@ -369,18 +352,18 @@ _VOICE_PLAYER_TEMPLATE = Template("""
     border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 30px; padding: 6px 14px 6px 6px;
   }
   .vp-btn {
-    width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
-    background-color: #0ea5e9; color: #fff; font-size: 12px;
+    width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+    background-color: #0ea5e9; color: #fff; font-size: 13px;
     display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s;
+    transition: all 0.2s;
   }
-  .vp-btn:hover { background-color: #0284c7; }
-  .vp-wave { position: relative; width: ${wave_width}px; height: 24px; cursor: pointer; }
-  .vp-bars-bg, .vp-bars-fixed { position: absolute; top: 0; left: 0; width: ${wave_width}px; height: 100%; display: flex; align-items: center; gap: 2px; }
+  .vp-btn:hover { background-color: #0284c7; transform: scale(1.05); }
+  .vp-wave { position: relative; width: ${wave_width}px; height: 26px; cursor: pointer; }
+  .vp-bars-bg, .vp-bars-fixed { position: absolute; top: 0; left: 0; width: ${wave_width}px; height: 100%; display: flex; align-items: center; gap: 3px; }
   .vp-bars-bg span { display: block; width: 3px; border-radius: 2px; background: rgba(128, 128, 128, 0.3); }
   .vp-bars-fixed span { display: block; width: 3px; border-radius: 2px; background-color: #0ea5e9; }
   .vp-clip { position: absolute; top: 0; left: 0; height: 100%; width: 0px; overflow: hidden; }
-  .vp-time { font-size: 11px; font-weight: 600; opacity: 0.7; min-width: 32px; text-align: right; }
+  .vp-time { font-size: 12px; font-weight: 700; opacity: 0.7; min-width: 36px; text-align: right; }
 </style>
 </head>
 <body>
@@ -431,15 +414,15 @@ _VOICE_PLAYER_TEMPLATE = Template("""
 
 def _wave_bar_heights(seed_key: str, bars: int = 40):
     rng = random.Random(seed_key)
-    return [rng.randint(6, 20) for _ in range(bars)]
+    return [rng.randint(6, 22) for _ in range(bars)]
 
 def render_voice_player(audio_path: str, autoplay: bool):
     with open(audio_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("ascii")
     heights = _wave_bar_heights(os.path.basename(audio_path))
     bars_html = "".join(f'<span style="height:{h}px"></span>' for h in heights)
-    html = _VOICE_PLAYER_TEMPLATE.substitute(wave_width=200, bars=bars_html, autoplay_attr="autoplay" if autoplay else "", b64=b64)
-    components.html(html, height=50, scrolling=False)
+    html = _VOICE_PLAYER_TEMPLATE.substitute(wave_width=220, bars=bars_html, autoplay_attr="autoplay" if autoplay else "", b64=b64)
+    components.html(html, height=55, scrolling=False)
 
 # ==========================================
 # 4. بناء تبويبات المنصة الاحترافية (Tabs)
@@ -501,7 +484,7 @@ with tab_vocab:
             if st.form_submit_button("حفظ الكلمة"):
                 if new_word:
                     try:
-                        with sqlite3.connect(DB_PATH) as conn:
+                        with sqlite3.connect(DB_PATH, timeout=10) as conn:
                             c = conn.cursor()
                             c.execute("INSERT OR REPLACE INTO vocab_notebook (word, word_type, meaning_ar, example, status) VALUES (?, ?, ?, ?, ?)",
                                       (new_word.strip(), new_type, new_meaning.strip(), new_example.strip(), "Needs Review"))
@@ -514,7 +497,7 @@ with tab_vocab:
                     st.warning("يرجى كتابة الكلمة أولاً.")
 
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
             c.execute("SELECT id, word, word_type, meaning_ar, example, status FROM vocab_notebook ORDER BY id DESC")
             vocab_rows = c.fetchall()
@@ -531,10 +514,10 @@ with tab_vocab:
                 <div class="vocab-row">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <strong style="font-size:1.2rem; color:#0ea5e9;">{r_word}</strong> 
+                            <strong style="font-size:1.25rem; color:#0ea5e9;">{r_word}</strong> 
                             <span style="opacity:0.6; font-size:0.9rem; margin-left:6px;">({r_type})</span><br>
-                            <span style="font-weight:600; font-size:1rem;">{r_meaning}</span>
-                            {f'<br><i style="opacity:0.8; font-size:0.95rem; margin-top:4px; display:inline-block;">"{r_example}"</i>' if r_example else ''}
+                            <span style="font-weight:600; font-size:1.05rem;">{r_meaning}</span>
+                            {f'<br><i style="opacity:0.8; font-size:0.95rem; margin-top:6px; display:inline-block;">"{r_example}"</i>' if r_example else ''}
                         </div>
                     </div>
                 </div>
@@ -544,12 +527,12 @@ with tab_vocab:
                 col_btn1, col_btn2 = st.columns([1, 4])
                 if col_btn1.button("تغيير الحالة", key=f"v_toggle_{r_id}", help="التبديل بين محفوظة وتحتاج مراجعة"):
                     new_st = "Learned" if r_status == "Needs Review" else "Needs Review"
-                    with sqlite3.connect(DB_PATH) as conn:
+                    with sqlite3.connect(DB_PATH, timeout=10) as conn:
                         c = conn.cursor()
                         c.execute("UPDATE vocab_notebook SET status = ? WHERE id = ?", (new_st, r_id))
                         conn.commit()
                     st.rerun()
-                col_btn2.markdown(f"<div style='margin-top:5px; font-size:0.9rem; font-weight:500;'>الحالة: {status_color}</div>", unsafe_allow_html=True)
+                col_btn2.markdown(f"<div style='margin-top:6px; font-size:0.95rem; font-weight:600;'>الحالة: {status_color}</div>", unsafe_allow_html=True)
         else:
             st.info("لم تقم بإضافة أي كلمات بعد.")
     except Exception as e:
@@ -586,16 +569,28 @@ with tab_chat:
         st.warning("👈 يرجى إدخال مفتاح Gemini API Key في الشريط الجانبي لبدء المحادثة.")
         st.stop()
 
+    # تم التعديل: دالة مساعدة لضمان مزامنة محادثات الواجهة مع تاريخ محادثة Gemini في حال تم حذف رسالة (لمنع خطأ 400 Bad Request).
+    def sync_gemini_history(client_instance):
+        history_parts = []
+        for m in st.session_state.messages:
+            # Gemini expects 'user' or 'model' roles explicitly in history.
+            role = "user" if m["role"] == "user" else "model" 
+            history_parts.append(
+                types.Content(role=role, parts=[types.Part.from_text(text=m["content"])])
+            )
+        st.session_state.chat_session = client_instance.chats.create(
+            model=model_name,
+            config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, temperature=0.7),
+            history=history_parts
+        )
+
     try:
         client = genai.Client(api_key=api_key)
         config_signature = (scenario, model_name, strictness, mem_name, mem_level, mem_goals, mem_notes)
         if "chat_session" not in st.session_state or st.session_state.get("current_config") != config_signature:
-            st.session_state.chat_session = client.chats.create(
-                model=model_name,
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, temperature=0.7),
-            )
-            st.session_state.current_config = config_signature
             st.session_state.messages = []
+            sync_gemini_history(client)
+            st.session_state.current_config = config_signature
             st.session_state.test_question_count = 0
             st.session_state.last_played_audio = None
             st.session_state.audio_input_key = 0
@@ -603,6 +598,7 @@ with tab_chat:
             if scenario == "Speaking Placement Test (10+ Questions)":
                 welcome_msg = f"Welcome {mem_name} to the English Speaking Placement Test. Let's begin! Question 1: Could you introduce yourself and tell me a bit about your daily routine?"
                 st.session_state.messages.append({"role": "assistant", "content": welcome_msg, "audio": speak(welcome_msg, voice_id)})
+                sync_gemini_history(client)
                 update_stat("total_messages", 1)
     except Exception as e:
         st.error(f"⚠️ خطأ في الاتصال بالخادم (تأكد من صحة المفتاح أو الاتصال): `{e}`")
@@ -624,30 +620,101 @@ with tab_chat:
         pct = min(answered / 10, 1.0)
         st.progress(pct, text=f"📝 الأسئلة المجابة: {answered} من أصل 10+")
 
-    def handle_user_message(text: str):
-        st.session_state.messages.append({"role": "user", "content": text})
+    # تم التعديل: إيقاف عملية st.rerun() الخاطئة التي كانت تسبب اختفاء المحتوى وتمزيق الواجهة عند إرسال رسالة.
+    # الآن يتم استرجاع وعرض الرسائل السابقة أولاً لتسلسل سليم.
+    messages = st.session_state.messages
+    if not messages:
+        st.info("ابدأ التحدث بالأسفل لبدء المحادثة الصوتية أو النصية!")
+
+    last_index = len(messages) - 1
+    for i, msg in enumerate(messages):
+        avatar = "🤖" if msg["role"] == "assistant" else "🧑"
+        with st.chat_message(msg["role"], avatar=avatar):
+            if msg.get("eval"):
+                ev = msg["eval"]
+                st.markdown(f"""
+                    <div class="eval-card">
+                        <div class="eval-scores">
+                            <span class="eval-score-item">Grammar: {ev.get('Grammar','-')}</span>
+                            <span class="eval-score-item">Vocab: {ev.get('Vocab','-')}</span>
+                            <span class="eval-score-item">Natural: {ev.get('Natural','-')}</span>
+                            <span class="eval-score-item">Fluency: {ev.get('Fluency','-')}</span>
+                        </div>
+                        <div style="margin-top:8px; font-weight:600; opacity:0.9;"><b>التصحيح:</b> {ev.get('Correction','عمل ممتاز!')}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.write(msg["content"])
+            
+            audio_path = msg.get("audio")
+            if audio_path and os.path.exists(audio_path):
+                is_fresh = (i == last_index) and (audio_path != st.session_state.get("last_played_audio"))
+                render_voice_player(audio_path, autoplay_audio and is_fresh)
+                if is_fresh:
+                    st.session_state.last_played_audio = audio_path
+
+            if st.button("🗑️", key=f"del_{i}", help="حذف هذه الرسالة"):
+                # تم التعديل: عند الحذف، نحذف الرسالة ونقوم بمزامنة الذاكرة مع Gemini لمنع انهيار API.
+                st.session_state.messages.pop(i)
+                sync_gemini_history(client)
+                st.rerun()
+
+    st.markdown("<br><hr style='opacity:0.2;'>", unsafe_allow_html=True)
+    
+    if voice_only_mode:
+        st.success("🎙️ وضع المكالمة الصوتية مفعل. يمكنك استخدام زر المايكرفون للتحدث بشكل مباشر.")
+
+    if "audio_input_key" not in st.session_state:
+        st.session_state.audio_input_key = 0
+
+    audio_value = st.audio_input("سجل رسالتك الصوتية:", key=f"audio_recorder_{st.session_state.audio_input_key}")
+    typed = None if voice_only_mode else st.chat_input("أو اكتب رسالتك النصية هنا...")
+
+    # تم التعديل: جمع عمليات الإدخال لمنع التداخل والتعامل مع الإرسال بأسلوب Streamlit الصحيح والسلس
+    user_input_text = None
+
+    if audio_value is not None:
+        audio_bytes = audio_value.getvalue()
+        audio_id = hashlib.sha256(audio_bytes).hexdigest()
+        if st.session_state.get("last_audio_id") != audio_id:
+            st.session_state.last_audio_id = audio_id
+            with st.spinner("🎧 جاري معالجة الصوت..."):
+                try:
+                    transcript = client.models.generate_content(
+                        model=model_name,
+                        contents=[types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"), "Transcribe exactly what is said in this audio. Output ONLY the transcription."],
+                    )
+                    user_input_text = transcript.text.strip()
+                except Exception as e:
+                    st.error(f"⚠️ حدث خطأ في التعرف على الصوت: {e}")
+            st.session_state.audio_input_key += 1
+    elif typed:
+        user_input_text = typed
+
+    # معالجة الإدخال الحي ورسم الرسالة فوراً دون استدعاء st.rerun() المسبب للوميض
+    if user_input_text:
+        st.session_state.messages.append({"role": "user", "content": user_input_text})
         update_stat("total_messages", 1)
-        update_stat("total_words", len(text.split()))
+        update_stat("total_words", len(user_input_text.split()))
 
         if scenario == "Speaking Placement Test (10+ Questions)":
             st.session_state.test_question_count = st.session_state.get("test_question_count", 0) + 1
 
         with st.chat_message("user", avatar="🧑"):
-            st.write(text)
+            st.write(user_input_text)
 
         with st.chat_message("assistant", avatar="🤖"):
             with st.spinner("المعلم يكتب الرد..."):
                 try:
-                    response = st.session_state.chat_session.send_message(text)
+                    response = st.session_state.chat_session.send_message(user_input_text)
                     full_reply = response.text
                 except Exception as e:
                     st.error(f"⚠️ تعذر الحصول على رد من الذكاء الاصطناعي: {e}")
-                    st.session_state.messages.pop() 
-                    return
+                    st.session_state.messages.pop() # التراجع عن رسالة المستخدم في حال فشل الرد
+                    st.stop()
 
             eval_data = None
             display_reply = full_reply
-            # تم التعديل: تحسين وتوسيع الـ Regex ليتمكن من التقاط قالب التقييم حتى مع وجود مسافات غير متوقعة أو أسطر جديدة لتجنب اختلال النص.
             eval_match = re.search(r"\[EVAL\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
             if eval_match:
                 eval_str = eval_match.group(1).replace('\n', '')
@@ -668,7 +735,7 @@ with tab_chat:
                             <span class="eval-score-item">Natural: {eval_data.get('Natural','-')}</span>
                             <span class="eval-score-item">Fluency: {eval_data.get('Fluency','-')}</span>
                         </div>
-                        <div style="margin-top:8px; font-weight:500; opacity:0.9;"><b>التصحيح:</b> {eval_data.get('Correction','لا يوجد ملاحظات، عمل ممتاز!')}</div>
+                        <div style="margin-top:8px; font-weight:600; opacity:0.9;"><b>التصحيح:</b> {eval_data.get('Correction','لا يوجد ملاحظات، عمل ممتاز!')}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -682,6 +749,7 @@ with tab_chat:
             except Exception as e:
                 print(f"TTS Error: {e}")
 
+        # حفظ رد המعلم في الذاكرة المحلية
         st.session_state.messages.append({
             "role": "assistant", 
             "content": display_reply, 
@@ -690,74 +758,3 @@ with tab_chat:
         })
         update_stat("total_messages", 1)
         update_stat("total_words", len(display_reply.split()))
-
-    messages = st.session_state.messages
-    if not messages:
-        st.info("ابدأ التحدث بالأسفل لبدء المحادثة الصوتية أو النصية!")
-
-    last_index = len(messages) - 1
-    for i, msg in enumerate(messages):
-        avatar = "🤖" if msg["role"] == "assistant" else "🧑"
-        with st.chat_message(msg["role"], avatar=avatar):
-            if msg.get("eval"):
-                ev = msg["eval"]
-                st.markdown(f"""
-                    <div class="eval-card">
-                        <div class="eval-scores">
-                            <span class="eval-score-item">Grammar: {ev.get('Grammar','-')}</span>
-                            <span class="eval-score-item">Vocab: {ev.get('Vocab','-')}</span>
-                            <span class="eval-score-item">Natural: {ev.get('Natural','-')}</span>
-                            <span class="eval-score-item">Fluency: {ev.get('Fluency','-')}</span>
-                        </div>
-                        <div style="margin-top:8px; font-weight:500; opacity:0.9;"><b>التصحيح:</b> {ev.get('Correction','عمل ممتاز!')}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.write(msg["content"])
-            
-            audio_path = msg.get("audio")
-            if audio_path and os.path.exists(audio_path):
-                is_fresh = (i == last_index) and (audio_path != st.session_state.get("last_played_audio"))
-                render_voice_player(audio_path, autoplay_audio and is_fresh)
-                if is_fresh:
-                    st.session_state.last_played_audio = audio_path
-
-            if st.button("🗑️", key=f"del_{i}", help="حذف هذه الرسالة"):
-                st.session_state.messages.pop(i)
-                st.rerun()
-
-    st.markdown("<br><hr style='opacity:0.2;'>", unsafe_allow_html=True)
-    
-    if voice_only_mode:
-        st.success("🎙️ وضع المكالمة الصوتية مفعل. يمكنك استخدام زر المايكرفون للتحدث بشكل مباشر.")
-
-    if "audio_input_key" not in st.session_state:
-        st.session_state.audio_input_key = 0
-
-    audio_value = st.audio_input("سجل رسالتك الصوتية:", key=f"audio_recorder_{st.session_state.audio_input_key}")
-
-    if audio_value is not None:
-        audio_bytes = audio_value.getvalue()
-        audio_id = hashlib.sha256(audio_bytes).hexdigest()
-        if st.session_state.get("last_audio_id") != audio_id:
-            st.session_state.last_audio_id = audio_id
-            with st.spinner("🎧 جاري معالجة الصوت..."):
-                try:
-                    transcript = client.models.generate_content(
-                        model=model_name,
-                        contents=[types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"), "Transcribe exactly what is said in this audio. Output ONLY the transcription."],
-                    )
-                    spoken_text = transcript.text.strip()
-                except Exception as e:
-                    spoken_text = None
-                    st.error(f"⚠️ حدث خطأ في التعرف على الصوت: {e}")
-            if spoken_text:
-                handle_user_message(spoken_text)
-            st.session_state.audio_input_key += 1
-            st.rerun()
-
-    if not voice_only_mode:
-        typed = st.chat_input("أو اكتب رسالتك النصية هنا...")
-        if typed:
-            handle_user_message(typed)
-            st.rerun()
