@@ -57,7 +57,74 @@ APP_CSS = """
     /* خلفية مسطحة نضيفة — من غير أي نويز أو زخرفة استوديو */
     .stApp {
         background-color: var(--ink);
+        color: var(--paper);
     }
+
+    /* ===== نص عام — يضمن عدم بقاء لون النص القديم الأبيض من الثيم الغامق ===== */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMarkdownContainer"] span,
+    [data-testid="stMarkdownContainer"] strong,
+    label, .stMarkdown, [data-testid="stText"],
+    [data-testid="stCaptionContainer"],
+    [data-testid="stWidgetLabel"] p {
+        color: var(--paper) !important;
+    }
+
+    [data-testid="stCaptionContainer"] {
+        color: var(--mist) !important;
+    }
+
+    /* ===== الحقول — خلفية فاتحة ونص غامق زي شات جي بي تي ===== */
+    .stTextInput input,
+    .stTextArea textarea,
+    [data-testid="stChatInput"] textarea,
+    [data-testid="stNumberInput"] input {
+        background: var(--panel) !important;
+        color: var(--paper) !important;
+        border-radius: 12px !important;
+        border: 1px solid var(--line) !important;
+        caret-color: var(--meter-green) !important;
+    }
+    .stTextInput input::placeholder,
+    .stTextArea textarea::placeholder,
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: var(--mist) !important;
+        opacity: 1 !important;
+    }
+
+    /* القائمة المنسدلة selectbox / multiselect */
+    .stSelectbox [data-baseweb="select"] > div,
+    .stMultiSelect [data-baseweb="select"] > div {
+        background: var(--panel) !important;
+        color: var(--paper) !important;
+        border-color: var(--line) !important;
+    }
+    [data-baseweb="popover"] [data-baseweb="menu"],
+    [data-baseweb="popover"] li {
+        background: var(--panel) !important;
+        color: var(--paper) !important;
+    }
+    [data-baseweb="popover"] li:hover {
+        background: var(--green-dim) !important;
+    }
+
+    /* رسائل الشات — نص الفقاعة نفسه */
+    [data-testid="stChatMessageContent"] p,
+    [data-testid="stChatMessageContent"] li,
+    [data-testid="stChatMessageContent"] span {
+        color: var(--paper) !important;
+    }
+
+    .badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+        background: var(--green-dim); color: var(--meter-green);
+        border: 1px solid rgba(16, 163, 127, 0.28);
+        transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .badge:hover { transform: translateY(-1px); }
 
     /* ===== بطاقة الترحيب — بطاقة بسيطة بظل ناعم، من غير أي ديكور زايد ===== */
     .hero-card {
@@ -80,15 +147,6 @@ APP_CSS = """
     .hero-sub {
         color: var(--mist); font-size: 0.92rem; margin-bottom: 14px;
     }
-
-    .badge {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
-        background: var(--green-dim); color: var(--meter-green);
-        border: 1px solid rgba(16, 163, 127, 0.28);
-        transition: transform 0.15s ease, background 0.15s ease;
-    }
-    .badge:hover { transform: translateY(-1px); }
 
     /* ===== بطاقة التقييم ===== */
     .eval-card {
@@ -260,4 +318,3 @@ APP_CSS = """
 
 def inject_css():
     st.markdown(APP_CSS, unsafe_allow_html=True)
-
