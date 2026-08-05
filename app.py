@@ -388,6 +388,7 @@ scenario = st.sidebar.selectbox(
         "Speaking Placement Test (10+ Questions)",
     ],
     format_func=lambda s: f"{SCENARIO_ICONS.get(s, '💬')}  {s}",
+    key="scenario_select",  # // تم التعديل: مفتاح صريح ليصبح ممكناً التحكم بقيمة القائمة برمجياً (مطلوب لإصلاح استئناف الجلسات)
 )
 
 voice_label = st.sidebar.selectbox(
@@ -808,6 +809,7 @@ with tab_history:
                         st.session_state.messages = loaded
                         st.session_state.current_session_id = sid
                         st.session_state.current_scenario = scenario_name
+                        st.session_state["scenario_select"] = scenario_name  # // تم التعديل: مزامنة قائمة السيناريو بالسايدبار حتى لا يُعاد ضبط الجلسة فوراً ويُمسح ما تم تحميله
                         st.session_state.last_played_audio = None
                         st.success("تم تحميل المحادثة — روح لتبويب 💬 غرفة المحادثة.")
                         st.rerun()
@@ -910,7 +912,7 @@ with tab_chat:
                 <div class="hero-sub">المستوى: {mem_level} | الهدف: {mem_goals}</div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <span class="badge">{SCENARIO_ICONS.get(scenario, '💬')} {scenario}</span>
-                    <span class="badge" style="background:rgba(167,139,250,0.12); color:#a78bfa;">🔊 {voice_label}</span>
+                    <span class="badge" style="background:rgba(232,163,61,0.14); color:#E8A33D;">🔊 {voice_label}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -942,7 +944,7 @@ with tab_chat:
                     ev = msg["eval"]
                     cefr_badge = ""
                     if msg.get("cefr"):
-                        cefr_badge = f"<span class='badge' style='background:rgba(52,211,153,0.14);color:#34d399;margin-inline-start:6px;'>CEFR: {msg['cefr']}</span>"
+                        cefr_badge = f"<span class='badge' style='background:rgba(72,199,142,0.14);color:#48C78E;margin-inline-start:6px;'>CEFR: {msg['cefr']}</span>"
                     st.markdown(f"""
                         <div class="eval-card">
                             <div class="eval-scores">
@@ -1091,7 +1093,7 @@ with tab_chat:
 
                 if eval_data:
                     log_eval(eval_data, cefr)  # // جديد v10
-                    cefr_badge = f"<span class='badge' style='background:rgba(52,211,153,0.14);color:#34d399;margin-inline-start:6px;'>CEFR: {cefr}</span>" if cefr else ""
+                    cefr_badge = f"<span class='badge' style='background:rgba(72,199,142,0.14);color:#48C78E;margin-inline-start:6px;'>CEFR: {cefr}</span>" if cefr else ""
                     st.markdown(f"""
                         <div class="eval-card">
                             <div class="eval-scores">
