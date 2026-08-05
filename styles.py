@@ -5,19 +5,20 @@ APP_CSS = """
     @import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
 
     :root {
-        --ink: #FFFFFF;
+        /* ─── تم تصحيح أسماء المتغيرات: ink = داكن | paper = فاتح ─── */
+        --ink: #0D0D0D;
         --ink-2: #F7F7F8;
         --panel: #FFFFFF;
         --panel-raised: #F0F0F1;
-        --paper: #0D0D0D;
+        --paper: #FFFFFF;
         --mist: #6E6E80;
         --line: rgba(0,0,0,0.09);
 
         --meter-green: #10A37F;
         --meter-amber: #B45309;
         --meter-red: #DC2626;
-        --meter-blue: #2563EB;   /* جديد: معلومات / روابط */
-        --meter-purple: #7C3AED; /* جديد: تمييز إضافي */
+        --meter-blue: #2563EB;
+        --meter-purple: #7C3AED;
 
         --green-dim: rgba(16, 163, 127, 0.09);
         --amber-dim: rgba(180, 83, 9, 0.10);
@@ -37,11 +38,11 @@ APP_CSS = """
 
     /* ─── أساسيات الخطوط ─── */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
-    [data-testid="stMarkdownContainer"], .stChatMessage, .stButton>button,
+    [data-testid="stMarkdownContainer"], [data-testid="stChatMessage"], .stButton>button,
     .stTextInput input, .stTextArea textarea, .stSelectbox, [data-testid="stMetricLabel"],
     .stNumberInput input, .stDateInput input, .stTimeInput input {
         font-family: var(--font-body) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
     }
 
     [data-testid="stMarkdownContainer"] h1,
@@ -50,14 +51,14 @@ APP_CSS = """
     [data-testid="stMarkdownContainer"] h4 {
         font-family: var(--font-display) !important;
         letter-spacing: -0.01em;
-        color: var(--paper);
+        color: var(--ink);
         line-height: 1.25;
     }
 
-    ::selection { background: var(--green-dim); color: var(--paper); }
+    ::selection { background: var(--green-dim); color: var(--ink); }
 
     /* ─── خلفية التطبيق ─── */
-    .stApp { background-color: var(--ink); }
+    .stApp { background-color: var(--paper); }
 
     /* ─── Selectbox & Multiselect ─── */
     .stSelectbox [data-baseweb="select"] > div,
@@ -65,14 +66,14 @@ APP_CSS = """
         background-color: var(--panel-raised) !important;
         border: 1px solid var(--line) !important;
         border-radius: var(--radius-md) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         min-height: 40px;
     }
     .stSelectbox [data-baseweb="select"] input,
     .stMultiselect [data-baseweb="select"] input,
     .stSelectbox [data-baseweb="select"] div[role="button"],
     .stMultiselect [data-baseweb="select"] div[role="button"] {
-        color: var(--paper) !important;
+        color: var(--ink) !important;
     }
     .stSelectbox svg, .stMultiselect svg { fill: var(--mist) !important; }
 
@@ -84,7 +85,7 @@ APP_CSS = """
         box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
     }
     div[data-baseweb="popover"] li[role="option"] {
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         background-color: transparent !important;
         font-family: var(--font-body) !important;
     }
@@ -100,7 +101,7 @@ APP_CSS = """
         background-color: var(--panel-raised) !important;
         border: 1px solid var(--line) !important;
         border-radius: var(--radius-md) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-family: var(--font-body) !important;
     }
     .stTextInput input::placeholder,
@@ -124,7 +125,6 @@ APP_CSS = """
         background: var(--ink-2);
         border-inline-end: 1px solid var(--line);
     }
-    /* زر طي/فتح السايدبار */
     button[data-testid="baseButton-header"] {
         background: var(--panel-raised) !important;
         border: 1px solid var(--line) !important;
@@ -151,7 +151,7 @@ APP_CSS = """
         font-weight: 700 !important;
         font-family: var(--font-body) !important;
         background: var(--panel-raised) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         border: 1px solid var(--line) !important;
         transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
@@ -169,7 +169,6 @@ APP_CSS = """
     .stLinkButton>a:focus-visible {
         outline: 2px solid var(--meter-green); outline-offset: 2px;
     }
-    /* الزر الأساسي (Primary) — يختلف قليلاً */
     .stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"] {
         background: var(--meter-green) !important;
         color: #FFFFFF !important;
@@ -213,15 +212,13 @@ APP_CSS = """
         border-color: rgba(16, 163, 127, 0.22);
         box-shadow: 0 2px 12px rgba(0,0,0,0.03);
     }
-    /* صورة الأفاتار */
     [data-testid="stChatMessage"] img {
         border-radius: var(--radius-full) !important;
         border: 2px solid var(--line) !important;
     }
-    /* اسم المرسل */
     [data-testid="stChatMessage"] [data-testid="stChatMessageAvatar"] + div {
         font-weight: 700;
-        color: var(--paper);
+        color: var(--ink);
     }
 
     [data-testid="stChatInput"] {
@@ -243,7 +240,7 @@ APP_CSS = """
     }
     [data-testid="stExpanderToggle"] {
         background: transparent !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-weight: 700 !important;
     }
     [data-testid="stExpanderToggle"]:hover {
@@ -299,10 +296,11 @@ APP_CSS = """
     }
 
     /* ─── Toggle / Checkbox / Radio ─── */
-    .stToggle > div > div {
+    /* تم تصحيح selector الـ Toggle ليتوافق مع Streamlit الحديث */
+    [data-testid="stToggle"] > div > div {
         background: var(--line) !important;
     }
-    .stToggle > div > div[data-checked="true"] {
+    [data-testid="stToggle"] > div > div[data-checked="true"] {
         background: var(--meter-green) !important;
     }
     .stCheckbox > label > div[role="checkbox"],
@@ -329,7 +327,7 @@ APP_CSS = """
     [data-testid="stFileUploader"] button {
         background: var(--panel-raised) !important;
         border: 1px solid var(--line) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         border-radius: var(--radius-sm) !important;
     }
     [data-testid="stFileUploader"] button:hover {
@@ -366,24 +364,25 @@ APP_CSS = """
     }
 
     /* ─── Code Blocks ─── */
-    .stMarkdown pre, .stMarkdown code {
+    /* تم تصحيح selector من .stMarkdown إلى [data-testid="stMarkdownContainer"] */
+    [data-testid="stMarkdownContainer"] pre, [data-testid="stMarkdownContainer"] code {
         font-family: var(--font-mono) !important;
         border-radius: var(--radius-sm) !important;
     }
-    .stMarkdown pre {
+    [data-testid="stMarkdownContainer"] pre {
         background: #1E1E1E !important;
         color: #D4D4D4 !important;
         border: 1px solid rgba(255,255,255,0.08) !important;
         padding: 14px !important;
         overflow-x: auto;
     }
-    .stMarkdown code {
+    [data-testid="stMarkdownContainer"] code {
         background: var(--panel-raised) !important;
         color: var(--meter-green) !important;
         padding: 2px 6px !important;
         font-size: 0.9em;
     }
-    .stMarkdown pre code {
+    [data-testid="stMarkdownContainer"] pre code {
         background: transparent !important;
         color: #D4D4D4 !important;
         padding: 0 !important;
@@ -397,13 +396,13 @@ APP_CSS = """
     }
     [data-testid="stDataFrame"] th {
         background: var(--ink-2) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-weight: 700 !important;
         font-family: var(--font-body) !important;
         border-bottom: 1px solid var(--line) !important;
     }
     [data-testid="stDataFrame"] td {
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-family: var(--font-body) !important;
         border-bottom: 1px solid var(--line) !important;
     }
@@ -421,16 +420,16 @@ APP_CSS = """
         background: var(--panel) !important;
     }
     [data-testid="stStatus"] [data-testid="stStatusLabel"] {
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-weight: 700 !important;
     }
 
-    /* ─── Popover (جديد في Streamlit) ─── */
+    /* ─── Popover ─── */
     [data-testid="stPopover"] > div:first-child > button {
         background: var(--panel-raised) !important;
         border: 1px solid var(--line) !important;
         border-radius: var(--radius-md) !important;
-        color: var(--paper) !important;
+        color: var(--ink) !important;
         font-weight: 600 !important;
     }
     [data-testid="stPopover"] > div:first-child > button:hover {
@@ -459,6 +458,8 @@ APP_CSS = """
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: var(--radius-full); }
     ::-webkit-scrollbar-thumb:hover { background: rgba(16, 163, 127, 0.3); }
+    /* دعم Firefox */
+    * { scrollbar-width: thin; scrollbar-color: rgba(16, 163, 127, 0.2) transparent; }
 
     /* ─── Typing Indicator ─── */
     .typing-card {
@@ -505,7 +506,7 @@ APP_CSS = """
     .eval-scores {
         display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
         font-family: var(--font-mono);
-        font-weight: 600; color: var(--paper);
+        font-weight: 600; color: var(--ink);
         font-size: 0.76rem; letter-spacing: 0.02em;
         padding-bottom: 10px; margin-bottom: 10px;
         border-bottom: 1px solid var(--line);
@@ -528,8 +529,6 @@ APP_CSS = """
 
     /* ─── Mobile ─── */
     @media (max-width: 480px) {
-        .hero-card { padding: 18px 20px; }
-        .hero-title { font-size: 1.45rem; }
         .eval-scores { gap: 9px; font-size: 0.7rem; }
         [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
     }
