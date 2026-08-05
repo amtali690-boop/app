@@ -37,9 +37,6 @@ APP_CSS = """
         --font-mono: 'IBM Plex Mono', monospace;
     }
 
-    /* ✅ التعديل: فرض لون نص غامق افتراضي على كل عناصر التطبيق الأساسية
-       (النص العادي، السايدبار، الشات...) — كان ناقص، وده سبب ظهور الشاشة بيضاء
-       (نص فاتح/أبيض فوق خلفية بيضاء = غير مرئي) */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
     [data-testid="stMarkdownContainer"], .stChatMessage, .stButton>button,
     .stTextInput input, .stTextArea textarea, .stSelectbox, [data-testid="stMetricLabel"] {
@@ -63,26 +60,35 @@ APP_CSS = """
         background-color: var(--ink);
     }
 
-    /* ===== بطاقة الترحيب — بطاقة بسيطة بظل ناعم، من غير أي ديكور زايد ===== */
-    .hero-card {
-        position: relative;
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 20px;
-        padding: 24px 30px;
-        margin-bottom: 18px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.05);
-        overflow: hidden;
+    /* ✅ التعديل: القوائم المنسدلة (selectbox) بحالتها العادية —
+       كانت سوداء لأنها ما كانت متغطاة إلا عند الـ focus فقط.
+       هلق صارت فاتحة زي حقول شات جي بي تي: خلفية رمادي فاتح، حدود ناعمة، نص غامق */
+    .stSelectbox [data-baseweb="select"] > div {
+        background-color: var(--panel-raised) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 12px !important;
+        color: var(--paper) !important;
     }
-    .hero-title {
-        font-family: var(--font-display);
-        font-size: 1.95rem; font-weight: 700;
-        color: var(--paper);
-        margin-bottom: 4px;
-        letter-spacing: -0.01em;
+    .stSelectbox [data-baseweb="select"] input,
+    .stSelectbox [data-baseweb="select"] div[role="button"] {
+        color: var(--paper) !important;
     }
-    .hero-sub {
-        color: var(--mist); font-size: 0.92rem; margin-bottom: 14px;
+    .stSelectbox svg { fill: var(--mist) !important; }
+
+    /* قائمة الخيارات المنسدلة نفسها (البوب أب) لما تفتحها */
+    div[data-baseweb="popover"] ul[role="listbox"] {
+        background-color: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 12px !important;
+    }
+    div[data-baseweb="popover"] li[role="option"] {
+        color: var(--paper) !important;
+        background-color: transparent !important;
+    }
+    div[data-baseweb="popover"] li[role="option"]:hover,
+    div[data-baseweb="popover"] li[aria-selected="true"] {
+        background-color: var(--green-dim) !important;
+        color: var(--meter-green) !important;
     }
 
     .badge {
