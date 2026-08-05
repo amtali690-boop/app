@@ -1,324 +1,45 @@
 # ==========================================
-# AI English Conversation Partner — v10 (Elite Language Platform + Deep Memory)
+# app.py — AI English Conversation Partner v10 (نقطة الدخول الرئيسية)
 # ==========================================
 
 import os
-import re
-import time
-import uuid
-import shutil
-import hashlib
-import tempfile
-import asyncio
-import base64
-import random
 import sqlite3
 from datetime import datetime
-from string import Template
 
 import streamlit as st
-import streamlit.components.v1 as components
-import edge_tts
 from google import genai
 from google.genai import types
 
-# استيراد ملف التنسيقات الخارجي
+# استيراد ملف التنسيقات الخارجي (عندك مسبقاً)
 from styles import inject_css
 
-# ==========================================
-# 0. إعداد قاعدة البيانات المحلية (SQLite)
-# ==========================================
-DB_DIR = os.path.join(tempfile.gettempdir(), "ai_english_elite")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "elite_partner.db")
-
-CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
-CEFR_NUM = {lvl: i + 1 for i, lvl in enumerate(CEFR_ORDER)}
-
-
-def init_db():
-    # // تم التعديل: إضافة timeout و WAL mode لضمان عدم قفل قاعدة البيانات (Database is locked)
-    try:
-        with sqlite3.connect(DB_PATH, timeout=15) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            c = conn.cursor()
-            c.execute('''CREATE TABLE IF NOT EXISTS user_profile (
-                            key TEXT PRIMARY KEY,
-                            value TEXT
-                        )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS vocab_notebook (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            word TEXT UNIQUE,
-                            word_type TEXT,
-                            meaning_ar TEXT,
-                            example TEXT,
-                            status TEXT,
-                            created_at TEXT
-                        )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS user_stats (
-                            key TEXT PRIMARY KEY,
-                            value INTEGER
-                        )''')
-            # // جديد v10: سجل الأخطاء المتكررة
-            c.execute('''CREATE TABLE IF NOT EXISTS mistakes_log (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            wrong_text TEXT,
-                            correct_text TEXT,
-                            explanation TEXT,
-                            created_at TEXT
-                        )''')
-            # // جديد v10: سجل تقييمات كل رسالة (لبناء لوحة التحليل)
-            c.execute('''CREATE TABLE IF NOT EXISTS eval_log (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            grammar INTEGER,
-                            vocab INTEGER,
-                            natural INTEGER,
-                            fluency INTEGER,
-                            cefr TEXT,
-                            created_at TEXT
-                        )''')
-            # // جديد v10: جلسات المحادثة (لتبويب السجل)
-            c.execute('''CREATE TABLE IF NOT EXISTS conversation_sessions (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            scenario TEXT,
-                            title TEXT,
-                            created_at TEXT
-                        )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS conversation_messages (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            session_id INTEGER,
-                            role TEXT,
-                            content TEXT,
-                            created_at TEXT
-                        )''')
-            conn.commit()
-        # // ترقية جدول قديم: إضافة created_at لدفتر مفردات موجود من نسخة سابقة
-        try:
-            with sqlite3.connect(DB_PATH, timeout=10) as conn:
-                conn.execute("ALTER TABLE vocab_notebook ADD COLUMN created_at TEXT")
-                conn.commit()
-        except Exception:
-            pass  # العمود موجود مسبقاً
-    except Exception as e:
-        print(f"DB Init Error: {e}")
-
+# ملفات المشروع المقسّمة
+from config import CEFR_NUM, DEFAULT_MODEL, SCENARIO_ICONS, PROMPTS, VOICE_MAP
+from database import (
+    DB_PATH,
+    init_db,
+    set_profile,
+    get_profile,
+    update_stat,
+    get_stat,
+    log_mistake,
+    log_eval,
+    create_session,
+    log_message_to_session,
+    get_all_sessions,
+    load_session_messages,
+    group_sessions_by_date,
+    get_due_reviews,
+    save_vocab_quick,
+)
+from audio_player import speak, render_voice_player, render_typing_indicator
+from ai_parser import parse_ai_tags
 
 init_db()
 
-
-def set_profile(key: str, val: str):
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("INSERT OR REPLACE INTO user_profile (key, value) VALUES (?, ?)", (key, str(val)))
-            conn.commit()
-    except Exception:
-        pass
-
-
-def get_profile(key: str, default: str = "") -> str:
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("SELECT value FROM user_profile WHERE key = ?", (key,))
-            row = c.fetchone()
-            return row[0] if row else default
-    except Exception:
-        return default
-
-
-def update_stat(key: str, amount: int = 1):
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("INSERT OR IGNORE INTO user_stats (key, value) VALUES (?, 0)", (key,))
-            c.execute("UPDATE user_stats SET value = value + ? WHERE key = ?", (amount, key))
-            conn.commit()
-    except Exception:
-        pass
-
-
-def get_stat(key: str) -> int:
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("SELECT value FROM user_stats WHERE key = ?", (key,))
-            row = c.fetchone()
-            return row[0] if row else 0
-    except Exception:
-        return 0
-
-
-# ------------------------------------------
-# جديد v10: مساعدات الأخطاء / التقييم / الجلسات / المراجعة الذكية
-# ------------------------------------------
-def log_mistake(wrong: str, correct: str, explanation: str):
-    if not wrong or wrong.strip().lower() in ("none", "n/a", "-"):
-        return
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO mistakes_log (wrong_text, correct_text, explanation, created_at) VALUES (?, ?, ?, ?)",
-                (wrong.strip(), correct.strip(), explanation.strip(), datetime.now().isoformat()),
-            )
-            conn.commit()
-    except Exception:
-        pass
-
-
-def log_eval(eval_data: dict, cefr: str):
-    def num(x):
-        try:
-            return int(str(x).split("/")[0].strip())
-        except Exception:
-            return None
-
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                """INSERT INTO eval_log (grammar, vocab, natural, fluency, cefr, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (
-                    num(eval_data.get("Grammar")),
-                    num(eval_data.get("Vocab")),
-                    num(eval_data.get("Natural")),
-                    num(eval_data.get("Fluency")),
-                    cefr,
-                    datetime.now().isoformat(),
-                ),
-            )
-            conn.commit()
-    except Exception:
-        pass
-
-
-def create_session(scenario: str, title: str = None) -> int:
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO conversation_sessions (scenario, title, created_at) VALUES (?, ?, ?)",
-                (scenario, title or scenario, datetime.now().isoformat()),
-            )
-            conn.commit()
-            return c.lastrowid
-    except Exception:
-        return None
-
-
-def log_message_to_session(session_id, role: str, content: str):
-    if not session_id or not content:
-        return
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO conversation_messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-                (session_id, role, content, datetime.now().isoformat()),
-            )
-            conn.commit()
-    except Exception:
-        pass
-
-
-def get_all_sessions():
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("SELECT id, scenario, title, created_at FROM conversation_sessions ORDER BY created_at DESC")
-            return c.fetchall()
-    except Exception:
-        return []
-
-
-def load_session_messages(session_id):
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                "SELECT role, content FROM conversation_messages WHERE session_id = ? ORDER BY id ASC",
-                (session_id,),
-            )
-            rows = c.fetchall()
-            return [{"role": r, "content": ct, "audio": None, "eval": None} for r, ct in rows]
-    except Exception:
-        return []
-
-
-def group_sessions_by_date(sessions):
-    now = datetime.now()
-    groups = {"📌 اليوم": [], "📅 أمس": [], "🗓️ هذا الأسبوع": [], "🗓️ هذا الشهر": [], "📦 أقدم": []}
-    for sid, scenario_name, title, created in sessions:
-        try:
-            dt = datetime.fromisoformat(created)
-        except Exception:
-            continue
-        diff_days = (now.date() - dt.date()).days
-        if diff_days <= 0:
-            groups["📌 اليوم"].append((sid, scenario_name, title, created))
-        elif diff_days == 1:
-            groups["📅 أمس"].append((sid, scenario_name, title, created))
-        elif diff_days <= 7:
-            groups["🗓️ هذا الأسبوع"].append((sid, scenario_name, title, created))
-        elif diff_days <= 30:
-            groups["🗓️ هذا الشهر"].append((sid, scenario_name, title, created))
-        else:
-            groups["📦 أقدم"].append((sid, scenario_name, title, created))
-    return groups
-
-
-def get_due_reviews():
-    """مراجعة ذكية مبسطة: نعرض كلمات أُضيفت قبل 1 / 7 / 30 يوم بالضبط (نموذج تكرار متباعد مبسّط)."""
-    now = datetime.now()
-    buckets = {"🔔 تعلمتها أمس": [], "🔔 من الأسبوع الماضي": [], "🔔 من الشهر الماضي": []}
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute("SELECT word, created_at FROM vocab_notebook WHERE created_at IS NOT NULL")
-            rows = c.fetchall()
-        for word, created in rows:
-            try:
-                dt = datetime.fromisoformat(created)
-            except Exception:
-                continue
-            diff_days = (now.date() - dt.date()).days
-            if diff_days == 1:
-                buckets["🔔 تعلمتها أمس"].append(word)
-            elif diff_days == 7:
-                buckets["🔔 من الأسبوع الماضي"].append(word)
-            elif diff_days == 30:
-                buckets["🔔 من الشهر الماضي"].append(word)
-    except Exception:
-        pass
-    return buckets
-
-
-def save_vocab_quick(nw: dict):
-    try:
-        with sqlite3.connect(DB_PATH, timeout=10) as conn:
-            c = conn.cursor()
-            c.execute(
-                """INSERT OR REPLACE INTO vocab_notebook
-                   (word, word_type, meaning_ar, example, status, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
-                (
-                    nw["word"].strip(),
-                    nw.get("type", "Phrase"),
-                    nw.get("meaning", ""),
-                    nw.get("example", ""),
-                    "Needs Review",
-                    datetime.now().isoformat(),
-                ),
-            )
-            conn.commit()
-        update_stat("total_vocab_words", 1)
-    except Exception:
-        pass
-
-
 if "session_audio_dir" not in st.session_state:
-    st.session_state.session_audio_dir = os.path.join(DB_DIR, uuid.uuid4().hex)
+    import uuid
+    st.session_state.session_audio_dir = os.path.join(os.path.dirname(DB_PATH), uuid.uuid4().hex)
     os.makedirs(st.session_state.session_audio_dir, exist_ok=True)
 
 AUDIO_DIR = st.session_state.session_audio_dir
@@ -330,40 +51,6 @@ st.set_page_config(page_title="AI English Elite Platform", page_icon="🎙️", 
 
 # تفعيل ملف الـ CSS الخارجي
 inject_css()
-
-DEFAULT_MODEL = "gemini-3.6-flash"  # // تم التعديل: gemini-2.5-flash لم يعد متاحاً للمستخدمين الجدد (404)؛ هذا هو الموديل المستقر الحالي (يدعم الصوت أيضاً لخاصية تفريغ التسجيلات)
-
-SCENARIO_ICONS = {
-    "Casual Friend (Everyday Chat)": "☕",
-    "Supermarket Customer (Work Practice)": "🛒",
-    "Grammar & Translation Coach": "📘",
-    "Speaking Placement Test (10+ Questions)": "📝",
-}
-
-PROMPTS = {
-    "Casual Friend (Everyday Chat)": (
-        "Act like a warm, casual friend having an everyday conversation. Talk about daily life, "
-        "hobbies, opinions, and casual topics. Keep the tone relaxed and natural, ask follow-up "
-        "questions, and encourage the user to speak freely."
-    ),
-    "Supermarket Customer (Work Practice)": (
-        "Roleplay as a customer or cashier in a supermarket so the user can practice real-life "
-        "shopping and customer-service English. Stay in character, use realistic scenarios "
-        "(checkout, asking for products, prices, complaints), and gently guide the conversation "
-        "back to the roleplay if the user goes off-topic."
-    ),
-    "Grammar & Translation Coach": (
-        "Act as a strict but supportive grammar and translation coach. Help the user translate "
-        "sentences between Arabic and English, explain grammar rules clearly and briefly, and "
-        "correct mistakes with short explanations of WHY something is wrong."
-    ),
-    "Speaking Placement Test (10+ Questions)": (
-        "Conduct a structured English speaking placement test. Ask one question at a time, "
-        "starting easy and gradually increasing difficulty, covering topics like self-introduction, "
-        "daily routine, opinions, hypothetical situations, and past experiences. Ask at least "
-        "10-15 questions total, then give a final overall level estimate (CEFR) at the end."
-    ),
-}
 
 # ==========================================
 # 2. الشريط الجانبي
@@ -388,19 +75,12 @@ scenario = st.sidebar.selectbox(
         "Speaking Placement Test (10+ Questions)",
     ],
     format_func=lambda s: f"{SCENARIO_ICONS.get(s, '💬')}  {s}",
-    key="scenario_select",  # // تم التعديل: مفتاح صريح ليصبح ممكناً التحكم بقيمة القائمة برمجياً (مطلوب لإصلاح استئناف الجلسات)
 )
 
 voice_label = st.sidebar.selectbox(
     "Voice:",
     ["Aria — US Female", "Guy — US Male", "Sonia — UK Female", "Ryan — UK Male"],
 )
-VOICE_MAP = {
-    "Aria — US Female": "en-US-AriaNeural",
-    "Guy — US Male": "en-US-GuyNeural",
-    "Sonia — UK Female": "en-GB-SoniaNeural",
-    "Ryan — UK Male": "en-GB-RyanNeural",
-}
 voice_id = VOICE_MAP[voice_label]
 
 autoplay_audio = st.sidebar.checkbox("🔊 Autoplay AI Voice", value=True)
@@ -430,175 +110,7 @@ if st.sidebar.button("🔄 جلسة جديدة تماماً", use_container_widt
     st.rerun()
 
 # ==========================================
-# 3. مشغل الصوت
-# ==========================================
-def speak(text: str, voice: str, rate: str = "+0%") -> str:
-    """// تم التعديل v10: إضافة معامل rate لدعم النطق البطيء (زر 'كرر ببطء')."""
-    if not text or not text.strip():
-        return None
-    out_path = os.path.join(AUDIO_DIR, f"tts_{uuid.uuid4().hex}.mp3")
-    clean_text = re.sub(r'[*_#`]', '', text)
-
-    loop = None
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        communicate = edge_tts.Communicate(clean_text, voice, rate=rate)
-        loop.run_until_complete(communicate.save(out_path))
-        if os.path.exists(out_path):
-            return out_path
-    except Exception as e:
-        print(f"❌ TTS Error: {e}")
-    finally:
-        if loop is not None:
-            loop.close()
-    return None
-
-
-_VOICE_PLAYER_TEMPLATE = Template("""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  html, body { margin:0; padding:4px 0 0 0; background: transparent; font-family: sans-serif; }
-  .vp-wrap {
-    display: inline-flex; align-items: center; gap: 12px;
-    background: linear-gradient(135deg, rgba(56,189,248,0.14), rgba(167,139,250,0.10));
-    border: 1px solid rgba(56,189,248,0.28); border-radius: 999px; padding: 8px 16px 8px 8px;
-  }
-  .vp-btn {
-    width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
-    background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; font-size: 13px;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 10px rgba(56,189,248,0.35);
-  }
-  .vp-wave { position: relative; width: ${wave_width}px; height: 28px; cursor: pointer; }
-  .vp-bars-bg, .vp-bars-fixed { position: absolute; top: 0; left: 0; width: ${wave_width}px; height: 100%; display: flex; align-items: center; gap: 2px; }
-  .vp-bars-bg span { display: block; width: 3px; border-radius: 2px; background: rgba(148,163,184,0.35); }
-  .vp-bars-fixed span { display: block; width: 3px; border-radius: 2px; background: linear-gradient(180deg, #38bdf8, #a78bfa); }
-  .vp-clip { position: absolute; top: 0; left: 0; height: 100%; width: 0px; overflow: hidden; }
-  .vp-time { font-size: 11px; font-weight: 700; color: #94a3b8; min-width: 34px; text-align: right; }
-</style>
-</head>
-<body>
-  <div class="vp-wrap" id="wrap">
-    <button class="vp-btn" id="btn">&#9658;</button>
-    <div class="vp-wave" id="wave">
-      <div class="vp-bars-bg">${bars}</div>
-      <div class="vp-clip" id="clip"><div class="vp-bars-fixed">${bars}</div></div>
-    </div>
-    <span class="vp-time" id="timeLabel">0:00</span>
-    <audio id="aud" preload="auto" ${autoplay_attr} src="data:audio/mpeg;base64,${b64}"></audio>
-  </div>
-<script>
-  var audio = document.getElementById('aud');
-  var btn = document.getElementById('btn');
-  var wave = document.getElementById('wave');
-  var clip = document.getElementById('clip');
-  var timeLabel = document.getElementById('timeLabel');
-  var WAVE_WIDTH = ${wave_width};
-
-  function fmt(s) {
-    if (!isFinite(s) || s < 0) return '0:00';
-    s = Math.round(s);
-    var m = Math.floor(s / 60), r = s % 60;
-    return m + ':' + (r < 10 ? '0' : '') + r;
-  }
-  audio.addEventListener('loadedmetadata', function () { timeLabel.textContent = fmt(audio.duration); });
-  audio.addEventListener('play', function () { btn.innerHTML = '&#10074;&#10074;'; });
-  audio.addEventListener('pause', function () { btn.innerHTML = '&#9658;'; });
-  audio.addEventListener('ended', function () { btn.innerHTML = '&#9658;'; clip.style.width = '0px'; });
-  audio.addEventListener('timeupdate', function () {
-    if (audio.duration) {
-      clip.style.width = ((audio.currentTime / audio.duration) * WAVE_WIDTH) + 'px';
-      timeLabel.textContent = fmt(audio.currentTime);
-    }
-  });
-  btn.addEventListener('click', function () { if (audio.paused) audio.play(); else audio.pause(); });
-  wave.addEventListener('click', function (e) {
-    var rect = wave.getBoundingClientRect();
-    var frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-    if (isFinite(audio.duration)) audio.currentTime = frac * audio.duration;
-  });
-  if (audio.autoplay) audio.play().catch(function(){});
-</script>
-</body>
-</html>
-""")
-
-
-def _wave_bar_heights(seed_key: str, bars: int = 30):
-    rng = random.Random(seed_key)
-    return [rng.randint(6, 24) for _ in range(bars)]
-
-
-def render_voice_player(audio_path: str, autoplay: bool):
-    if not audio_path or not os.path.exists(audio_path):
-        return
-    with open(audio_path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode("ascii")
-    heights = _wave_bar_heights(os.path.basename(audio_path))
-    bars_html = "".join(f'<span style="height:{h}px"></span>' for h in heights)
-    html = _VOICE_PLAYER_TEMPLATE.substitute(wave_width=150, bars=bars_html, autoplay_attr="autoplay" if autoplay else "", b64=b64)
-    components.html(html, height=60, scrolling=False)
-
-
-def render_typing_indicator(slot):
-    slot.markdown("""
-        <div class="typing-card">
-            <span>🤖 AI يفكر ويكتب</span>
-            <span class="typing-dots"><span></span><span></span><span></span></span>
-        </div>
-    """, unsafe_allow_html=True)
-
-
-# ==========================================
-# 3.5 جديد v10: تحليل ردود الـ AI (Tags الذكية)
-# ==========================================
-def parse_ai_tags(full_reply: str):
-    """
-    يفصل رد الـ AI الطبيعي عن الوسوم البرمجية:
-    [EVAL|...] [CEFR:X] [MISTAKE|wrong|correct|explanation] [NEWWORD|word|type|meaning|example]
-    """
-    display_reply = full_reply
-    eval_data = {}
-    cefr = None
-    mistake = None
-    newword = None
-
-    eval_match = re.search(r"\[EVAL\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
-    if eval_match:
-        eval_str = eval_match.group(1).replace('\n', '')
-        display_reply = display_reply.replace(eval_match.group(0), "")
-        for item in eval_str.split("|"):
-            if ":" in item:
-                k, v = item.split(":", 1)
-                eval_data[k.strip()] = v.strip()
-
-    cefr_match = re.search(r"\[CEFR\s*:\s*([A-Ca-c][12])\]", full_reply)
-    if cefr_match:
-        cefr = cefr_match.group(1).upper()
-        display_reply = display_reply.replace(cefr_match.group(0), "")
-
-    mistake_match = re.search(r"\[MISTAKE\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
-    if mistake_match:
-        parts = [p.strip() for p in mistake_match.group(1).split("|")]
-        display_reply = display_reply.replace(mistake_match.group(0), "")
-        if len(parts) >= 3 and parts[0].lower() not in ("none", "n/a", "-", ""):
-            mistake = {"wrong": parts[0], "correct": parts[1], "explanation": parts[2]}
-
-    newword_match = re.search(r"\[NEWWORD\s*\|(.*?)\]", full_reply, re.DOTALL | re.IGNORECASE)
-    if newword_match:
-        parts = [p.strip() for p in newword_match.group(1).split("|")]
-        display_reply = display_reply.replace(newword_match.group(0), "")
-        if len(parts) >= 4 and parts[0].lower() not in ("none", "n/a", "-", ""):
-            newword = {"word": parts[0], "type": parts[1], "meaning": parts[2], "example": parts[3]}
-
-    return display_reply.strip(), eval_data, cefr, mistake, newword
-
-
-# ==========================================
-# 4. بناء التبويبات (Tabs)
+# 3. بناء التبويبات (Tabs)
 # ==========================================
 tab_chat, tab_vocab, tab_memory, tab_progress, tab_history = st.tabs([
     "💬 غرفة المحادثة",
@@ -638,7 +150,7 @@ with tab_vocab:
     st.subheader("📓 دفتر المفردات الذكي")
     st.caption("احفظ الكلمات الجديدة، صنفها، وراجعها.")
 
-    # // جديد v10: مراجعة ذكية (Smart Review)
+    # مراجعة ذكية (Smart Review)
     due = get_due_reviews()
     if any(due.values()):
         with st.container(border=True):
@@ -710,7 +222,7 @@ with tab_vocab:
         pass
 
 # ------------------------------------------
-# تبويب 4: تحليل الأداء (جديد كلياً في v10)
+# تبويب 4: تحليل الأداء
 # ------------------------------------------
 with tab_progress:
     st.subheader("📈 لوحة تحليل الأداء")
@@ -777,7 +289,7 @@ with tab_progress:
         st.caption("ما في أخطاء مسجلة لهلأ — ممتاز! 🎉")
 
 # ------------------------------------------
-# تبويب 5: سجل المحادثات (جديد كلياً في v10)
+# تبويب 5: سجل المحادثات
 # ------------------------------------------
 with tab_history:
     st.subheader("🕘 سجل محادثاتك")
@@ -809,7 +321,6 @@ with tab_history:
                         st.session_state.messages = loaded
                         st.session_state.current_session_id = sid
                         st.session_state.current_scenario = scenario_name
-                        st.session_state["scenario_select"] = scenario_name  # // تم التعديل: مزامنة قائمة السيناريو بالسايدبار حتى لا يُعاد ضبط الجلسة فوراً ويُمسح ما تم تحميله
                         st.session_state.last_played_audio = None
                         st.success("تم تحميل المحادثة — روح لتبويب 💬 غرفة المحادثة.")
                         st.rerun()
@@ -826,8 +337,7 @@ with tab_chat:
         mem_goals = get_profile("goals", "محادثة عامة")
         mem_notes = get_profile("notes", "")
 
-        # // تم التعديل بشكل جذري v10: برومبت أقوى بكثير — idioms/phrasal verbs/collocations/نطق
-        # + تصحيح طبيعي داخل الحوار + وسوم منظمة لاستخراج البيانات آلياً
+        # برومبت النظام: idioms/phrasal verbs/collocations/نطق + تصحيح طبيعي داخل الحوار + وسوم منظمة لاستخراج البيانات آلياً
         SYSTEM_PROMPT = f"""
         You are an elite, warm English conversation coach — never a robotic grammar checker.
         Talk the way a skilled, encouraging native-speaker tutor would: natural, contractions,
@@ -893,14 +403,14 @@ with tab_chat:
                 st.session_state.messages = []
                 st.session_state.test_question_count = 0
                 st.session_state.last_played_audio = None
-                st.session_state.current_session_id = create_session(scenario)  # // جديد v10
+                st.session_state.current_session_id = create_session(scenario)
                 sync_gemini_history(client, [])
 
                 if scenario == "Speaking Placement Test (10+ Questions)":
                     welcome_msg = f"Welcome {mem_name} to the English Speaking Placement Test. Let's begin! Question 1: Could you introduce yourself?"
-                    audio_path = speak(welcome_msg, voice_id)
+                    audio_path = speak(welcome_msg, voice_id, AUDIO_DIR)
                     st.session_state.messages.append({"role": "assistant", "content": welcome_msg, "audio": audio_path})
-                    log_message_to_session(st.session_state.current_session_id, "assistant", welcome_msg)  # // جديد v10
+                    log_message_to_session(st.session_state.current_session_id, "assistant", welcome_msg)
                     sync_gemini_history(client, st.session_state.messages)
                     update_stat("total_messages", 1)
         except Exception as e:
@@ -912,7 +422,7 @@ with tab_chat:
                 <div class="hero-sub">المستوى: {mem_level} | الهدف: {mem_goals}</div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <span class="badge">{SCENARIO_ICONS.get(scenario, '💬')} {scenario}</span>
-                    <span class="badge" style="background:rgba(232,163,61,0.14); color:#E8A33D;">🔊 {voice_label}</span>
+                    <span class="badge" style="background:rgba(167,139,250,0.12); color:#a78bfa;">🔊 {voice_label}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -944,7 +454,7 @@ with tab_chat:
                     ev = msg["eval"]
                     cefr_badge = ""
                     if msg.get("cefr"):
-                        cefr_badge = f"<span class='badge' style='background:rgba(72,199,142,0.14);color:#48C78E;margin-inline-start:6px;'>CEFR: {msg['cefr']}</span>"
+                        cefr_badge = f"<span class='badge' style='background:rgba(52,211,153,0.14);color:#34d399;margin-inline-start:6px;'>CEFR: {msg['cefr']}</span>"
                     st.markdown(f"""
                         <div class="eval-card">
                             <div class="eval-scores">
@@ -967,16 +477,14 @@ with tab_chat:
                     if is_fresh:
                         st.session_state.last_played_audio = audio_path
 
-                # // جديد v10: شرح إضافي (إن وُجد)
                 if msg.get("explanation"):
                     st.info(f"💡 {msg['explanation']}")
 
-                # // جديد v10: نطق بطيء (إن تم توليده)
                 if msg.get("slow_audio"):
                     st.caption("🐢 نطق بطيء:")
                     render_voice_player(msg["slow_audio"], False)
 
-                # // جديد v10: صف الأزرار (شرح / نطق بطيء / حفظ كلمة / حذف)
+                # صف الأزرار (شرح / نطق بطيء / حفظ كلمة / حذف)
                 if msg["role"] == "assistant":
                     nw = msg.get("newword")
                     has_savable_word = bool(nw and nw.get("word") and nw["word"].strip().lower() not in ("none", ""))
@@ -998,7 +506,7 @@ with tab_chat:
 
                     if btn_cols[1].button("🔁 بطيء", key=f"slow_{i}"):
                         with st.spinner("جاري توليد النطق البطيء..."):
-                            slow_path = speak(msg["content"], voice_id, rate="-30%")
+                            slow_path = speak(msg["content"], voice_id, AUDIO_DIR, rate="-30%")
                             st.session_state.messages[i]["slow_audio"] = slow_path
                         st.rerun()
 
@@ -1043,6 +551,7 @@ with tab_chat:
 
         if audio_value is not None and len(audio_value.getvalue()) > 0:
             audio_bytes = audio_value.getvalue()
+            import hashlib
             audio_id = hashlib.sha256(audio_bytes).hexdigest()
             if st.session_state.get("last_audio_id") != audio_id:
                 st.session_state.last_audio_id = audio_id
@@ -1065,7 +574,7 @@ with tab_chat:
 
         if user_text:
             st.session_state.messages.append({"role": "user", "content": user_text})
-            log_message_to_session(st.session_state.get("current_session_id"), "user", user_text)  # // جديد v10
+            log_message_to_session(st.session_state.get("current_session_id"), "user", user_text)
             update_stat("total_messages", 1)
             update_stat("total_words", len(user_text.split()))
 
@@ -1088,12 +597,11 @@ with tab_chat:
                     st.stop()
                 typing_slot.empty()
 
-                # // تم التعديل v10: استخدام parse_ai_tags بدل استخراج EVAL فقط
                 display_reply, eval_data, cefr, mistake, newword = parse_ai_tags(full_reply)
 
                 if eval_data:
-                    log_eval(eval_data, cefr)  # // جديد v10
-                    cefr_badge = f"<span class='badge' style='background:rgba(72,199,142,0.14);color:#48C78E;margin-inline-start:6px;'>CEFR: {cefr}</span>" if cefr else ""
+                    log_eval(eval_data, cefr)
+                    cefr_badge = f"<span class='badge' style='background:rgba(52,211,153,0.14);color:#34d399;margin-inline-start:6px;'>CEFR: {cefr}</span>" if cefr else ""
                     st.markdown(f"""
                         <div class="eval-card">
                             <div class="eval-scores">
@@ -1107,7 +615,7 @@ with tab_chat:
                         </div>
                     """, unsafe_allow_html=True)
 
-                if mistake:  # // جديد v10
+                if mistake:
                     log_mistake(mistake["wrong"], mistake["correct"], mistake["explanation"])
 
                 st.write(display_reply)
@@ -1115,7 +623,7 @@ with tab_chat:
                 audio_path = None
                 try:
                     with st.spinner("🔊 جاري توليد الصوت..."):
-                        audio_path = speak(display_reply, voice_id)
+                        audio_path = speak(display_reply, voice_id, AUDIO_DIR)
                     render_voice_player(audio_path, autoplay_audio)
                     st.session_state.last_played_audio = audio_path
                 except Exception:
@@ -1126,10 +634,10 @@ with tab_chat:
                 "content": display_reply,
                 "audio": audio_path,
                 "eval": eval_data,
-                "cefr": cefr,        # // جديد v10
-                "newword": newword,  # // جديد v10
+                "cefr": cefr,
+                "newword": newword,
             })
-            log_message_to_session(st.session_state.get("current_session_id"), "assistant", display_reply)  # // جديد v10
+            log_message_to_session(st.session_state.get("current_session_id"), "assistant", display_reply)
             update_stat("total_messages", 1)
             update_stat("total_words", len(display_reply.split()))
 
