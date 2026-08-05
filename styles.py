@@ -1,8 +1,10 @@
 # ==========================================
 # styles.py — تنسيق CSS الخاص بالتطبيق فقط، منفصل عن أي منطق برمجي
-# هوية بصرية v3 (عصرية): "استوديو تسجيل صوتي" — القياس بالمستوى (Level Meter)
-# بدل هوية "الشهادة/التذكرة" السابقة. اللون والشكل مبنيان على عالم التطبيق
-# الحقيقي: محادثة صوتية + تقييم مستوى CEFR + تصحيح أخطاء + مفردات جديدة.
+# هوية بصرية v4 (نضيفة وفاتحة): مستوحاة من واجهة شات جي بي تي
+# — خلفية بيضاء، أسطح رمادي فاتح، تباعد سخي، وحدة لون واحدة هادئة
+# بدل هوية "استوديو التسجيل" الغامقة السابقة (VU meter / أخضر على أسود).
+# نفس أسماء الـ CSS variables والـ classes اتحفظت عشان أي كود
+# تاني بيستخدمها (hero-card, badge, eval-card...) يفضل شغال من غير تعديل.
 # ==========================================
 import streamlit as st
 
@@ -12,22 +14,23 @@ APP_CSS = """
     @import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
 
     :root {
-        --ink: #0B0D12;         /* خلفية الصفحة — أسود استوديو بارد */
-        --ink-2: #10131A;       /* سطح ثانوي / سايدبار */
-        --panel: #171A22;       /* سطح البطاقات */
-        --panel-raised: #1E222C;/* سطح مرتفع عند الـ hover */
-        --paper: #ECEEF3;       /* نص العناوين */
-        --mist: #838B9B;        /* نص ثانوي */
-        --line: rgba(255,255,255,0.07);
+        --ink: #FFFFFF;          /* خلفية الصفحة — أبيض نضيف */
+        --ink-2: #F7F7F8;        /* سطح ثانوي / سايدبار — رمادي فاتح جدًا */
+        --panel: #FFFFFF;        /* سطح البطاقات */
+        --panel-raised: #F0F0F1; /* سطح الأزرار / hover */
+        --paper: #0D0D0D;        /* نص العناوين — أسود شبه نقي */
+        --mist: #6E6E80;         /* نص ثانوي رمادي */
+        --line: rgba(0,0,0,0.09);/* خطوط وحدود فاتحة */
 
-        /* ألوان "مقياس المستوى" (VU meter) — مأخوذة من عالم معدّات الصوت نفسه */
-        --meter-green: #48C78E;   /* اللون الأساسي: تقدّم / نجاح / الحالة الطبيعية */
-        --meter-amber: #E8A33D;   /* تنبيه: مستوى CEFR / يحتاج مراجعة */
-        --meter-red:   #E2523F;  /* نادر ومقصود: الأخطاء فقط — تماماً كمنطقة "peak" الحمراء بمقياس صوت حقيقي */
+        /* لون تمييز واحد هادئ — نفس روح لون شات جي بي تي الأخضر،
+           مستخدم بانضباط في الأزرار والحالات والـ focus فقط */
+        --meter-green: #10A37F;   /* أساسي: تقدّم / نجاح / تمييز */
+        --meter-amber: #B45309;   /* تنبيه: مستوى CEFR / يحتاج مراجعة */
+        --meter-red:   #DC2626;   /* الأخطاء فقط */
 
-        --green-dim: rgba(72, 199, 142, 0.14);
-        --amber-dim: rgba(232, 163, 61, 0.14);
-        --red-dim:   rgba(226, 82, 63, 0.14);
+        --green-dim: rgba(16, 163, 127, 0.09);
+        --amber-dim: rgba(180, 83, 9, 0.10);
+        --red-dim:   rgba(220, 38, 38, 0.09);
 
         --font-display: 'El Messiri', 'Tajawal', sans-serif;
         --font-body: 'Tajawal', sans-serif;
@@ -46,48 +49,26 @@ APP_CSS = """
     [data-testid="stMarkdownContainer"] h3 {
         font-family: var(--font-display) !important;
         letter-spacing: -0.01em;
+        color: var(--paper);
     }
 
     ::selection { background: var(--green-dim); color: var(--paper); }
 
+    /* خلفية مسطحة نضيفة — من غير أي نويز أو زخرفة استوديو */
     .stApp {
         background-color: var(--ink);
-        background-image:
-            radial-gradient(circle at 12% 8%, rgba(72,199,142,0.06), transparent 42%),
-            radial-gradient(circle at 88% 92%, rgba(232,163,61,0.05), transparent 46%),
-            radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
-        background-size: auto, auto, 3px 3px;
-        background-repeat: no-repeat, no-repeat, repeat;
     }
 
-    /* ===== بطاقة الترحيب — لوحة استوديو، لا شهادة ===== */
+    /* ===== بطاقة الترحيب — بطاقة بسيطة بظل ناعم، من غير أي ديكور زايد ===== */
     .hero-card {
         position: relative;
-        background: linear-gradient(160deg, var(--panel) 0%, var(--ink-2) 100%);
+        background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 20px;
         padding: 24px 30px;
         margin-bottom: 18px;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.5);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.05);
         overflow: hidden;
-    }
-    /* ديكور "مقياس مستوى" صغير بزاوية البطاقة — بديل ختم الشهادة القديم.
-       يُبنى بالكامل من background-image (بدون أي عنصر HTML إضافي). */
-    .hero-card::after {
-        content: '';
-        position: absolute; top: 22px; inset-inline-end: 26px;
-        width: 64px; height: 30px;
-        background-image:
-            linear-gradient(to top, var(--meter-green) 45%, transparent 45%),
-            linear-gradient(to top, var(--meter-green) 72%, transparent 72%),
-            linear-gradient(to top, var(--meter-amber) 32%, transparent 32%),
-            linear-gradient(to top, var(--meter-green) 88%, transparent 88%),
-            linear-gradient(to top, var(--meter-green) 55%, transparent 55%),
-            linear-gradient(to top, var(--meter-red) 20%, transparent 20%);
-        background-repeat: no-repeat;
-        background-size: 6px 100%;
-        background-position: 0 100%, 12px 100%, 24px 100%, 36px 100%, 48px 100%, 60px 100%;
-        opacity: 0.6;
     }
     .hero-title {
         font-family: var(--font-display);
@@ -104,15 +85,15 @@ APP_CSS = """
         display: inline-flex; align-items: center; gap: 6px;
         padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
         background: var(--green-dim); color: var(--meter-green);
-        border: 1px solid rgba(72, 199, 142, 0.35);
+        border: 1px solid rgba(16, 163, 127, 0.28);
         transition: transform 0.15s ease, background 0.15s ease;
     }
     .badge:hover { transform: translateY(-1px); }
 
-    /* ===== بطاقة التقييم — "قراءة مقياس" لا تذكرة مثقوبة ===== */
+    /* ===== بطاقة التقييم ===== */
     .eval-card {
         position: relative;
-        background: var(--panel);
+        background: var(--ink-2);
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 14px 16px 12px 16px;
@@ -126,14 +107,9 @@ APP_CSS = """
         font-weight: 600; color: var(--paper);
         font-size: 0.76rem; letter-spacing: 0.02em;
         padding-bottom: 10px; margin-bottom: 10px;
-        /* خط تدريج المقياس بدل الخط المتقطع + ثقوب التذكرة */
         border-bottom: 1px solid var(--line);
-        background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 9px);
-        background-position: bottom;
-        background-size: 100% 1px;
-        background-repeat: no-repeat;
     }
-    /* نقطة ملوّنة قبل كل قيمة — تتناوب أخضر/أذهبي كأضواء مقياس صوت */
+    /* نقطة صغيرة قبل كل قيمة لتمييزها بسرعة */
     .eval-scores span::before {
         content: '●'; font-size: 0.55rem; margin-inline-end: 5px;
         color: var(--meter-green);
@@ -142,7 +118,7 @@ APP_CSS = """
     .eval-card b { color: var(--meter-amber); font-weight: 700; }
 
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--ink-2) 0%, var(--ink) 100%);
+        background: var(--ink-2);
         border-inline-end: 1px solid var(--line);
     }
     .side-heading {
@@ -163,7 +139,7 @@ APP_CSS = """
     .stButton>button:hover, .stDownloadButton>button:hover {
         transform: translateY(-1px);
         background: var(--green-dim) !important;
-        border-color: rgba(72, 199, 142, 0.55) !important;
+        border-color: rgba(16, 163, 127, 0.4) !important;
         color: var(--meter-green) !important;
     }
     .stButton>button:active, .stDownloadButton>button:active { transform: translateY(0); }
@@ -195,20 +171,21 @@ APP_CSS = """
     [data-testid="stChatMessage"] {
         border-radius: 16px; padding: 8px 6px;
         border: 1px solid var(--line);
-        background: rgba(255,255,255,0.02);
+        background: rgba(0,0,0,0.012);
         margin-bottom: 8px;
         transition: background 0.15s ease, border-color 0.15s ease;
     }
     [data-testid="stChatMessage"]:hover {
-        background: rgba(255,255,255,0.035);
-        border-color: rgba(72, 199, 142, 0.25);
+        background: rgba(0,0,0,0.025);
+        border-color: rgba(16, 163, 127, 0.22);
     }
 
     [data-testid="stChatInput"] {
         border-radius: 14px; border: 1px solid var(--line) !important;
+        background: var(--panel) !important;
     }
     [data-testid="stChatInput"]:focus-within {
-        border-color: rgba(72, 199, 142, 0.55) !important;
+        border-color: rgba(16, 163, 127, 0.5) !important;
     }
 
     [data-testid="stVerticalBlockBorderWrapper"] {
@@ -217,7 +194,7 @@ APP_CSS = """
         transition: border-color 0.15s ease;
     }
     [data-testid="stVerticalBlockBorderWrapper"]:hover {
-        border-color: rgba(72, 199, 142, 0.3) !important;
+        border-color: rgba(16, 163, 127, 0.28) !important;
     }
 
     /* أرقام الإحصائيات — بخط Mono زي شاشة قياس رقمية */
@@ -227,44 +204,39 @@ APP_CSS = """
     }
     [data-testid="stMetricLabel"] { color: var(--mist) !important; }
 
-    /* شريط التقدم — مقسّم كشرائح LED حقيقية بدل تدرّج مصمت
+    /* شريط التقدم — تعبئة مسطحة وبسيطة
        (ملاحظة: selector داخلي لستريملت وقد يتغير بين النسخ) */
     div[data-testid="stProgress"] > div > div {
-        background: rgba(255,255,255,0.06) !important;
+        background: rgba(0,0,0,0.07) !important;
         border-radius: 6px !important;
     }
     div[data-testid="stProgress"] > div > div > div {
-        background: repeating-linear-gradient(
-            90deg,
-            var(--meter-green) 0 6px,
-            transparent 6px 9px
-        ) !important;
+        background: var(--meter-green) !important;
         border-radius: 6px !important;
     }
 
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 8px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(72, 199, 142, 0.32); }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(16, 163, 127, 0.3); }
 
-    /* ===== مؤشر الكتابة — أعمدة مقياس صوت نابضة بدل نقاط قافزة ===== */
+    /* ===== مؤشر الكتابة — ثلاث نقاط بسيطة نابضة، زي مؤشرات الشات المعتادة ===== */
     .typing-card {
         display: inline-flex; align-items: center; gap: 10px;
-        background: var(--green-dim); border: 1px solid rgba(72, 199, 142, 0.22);
+        background: var(--ink-2); border: 1px solid var(--line);
         border-radius: 14px; padding: 10px 16px; color: var(--mist); font-size: 0.88rem; font-weight: 600;
     }
-    .typing-dots { display: inline-flex; align-items: flex-end; gap: 4px; height: 14px; }
+    .typing-dots { display: inline-flex; align-items: center; gap: 4px; height: 14px; }
     .typing-dots span {
-        width: 4px; height: 100%; border-radius: 2px;
+        width: 6px; height: 6px; border-radius: 50%;
         background: var(--meter-green);
-        animation: eq-bounce 1.1s infinite ease-in-out;
-        transform-origin: bottom;
+        animation: dot-bounce 1.2s infinite ease-in-out;
     }
-    .typing-dots span:nth-child(2) { animation-delay: 0.15s; background: var(--meter-amber); }
+    .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
     .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes eq-bounce {
-        0%, 100% { transform: scaleY(0.35); opacity: 0.7; }
-        50% { transform: scaleY(1); opacity: 1; }
+    @keyframes dot-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+        40% { transform: translateY(-4px); opacity: 1; }
     }
 
     /* إتاحة الحركة المخفّفة */
@@ -279,7 +251,6 @@ APP_CSS = """
     /* شاشات الموبايل الصغيرة */
     @media (max-width: 480px) {
         .hero-card { padding: 18px 20px; }
-        .hero-card::after { display: none; }
         .hero-title { font-size: 1.45rem; }
         .eval-scores { gap: 9px; font-size: 0.7rem; }
     }
